@@ -217,13 +217,13 @@ export function Sidebar(props: Props) {
       </div>
 
       <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
+        <Text type="secondary" style={{ fontSize: 11, flex: 1 }}>Super Redis</Text>
         <Tooltip title={props.isDark ? "Light theme" : "Dark theme"}>
           <Button size="small" icon={props.isDark ? <SunOutlined /> : <MoonOutlined />} onClick={props.onThemeToggle} />
         </Tooltip>
         <Tooltip title="Collapse sidebar">
           <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
         </Tooltip>
-        <Text type="secondary" style={{ fontSize: 11, flex: 1, textAlign: "right" }}>Super Redis</Text>
       </div>
 
       <ConnectionForm
