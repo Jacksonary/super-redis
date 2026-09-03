@@ -47,6 +47,11 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
 
   const treeData = useMemo<KeyTreeNode[]>(() => groupKeys(keys, delimiter), [keys, delimiter]);
   const keySet = useMemo(() => new Set(keys), [keys]);
+  // Flat mode shows keys alphabetically (SCAN returns them unordered).
+  const flatKeys = useMemo(
+    () => (keys.length > 1 ? [...keys].sort((a, b) => a.localeCompare(b)) : keys),
+    [keys]
+  );
 
   const load = useCallback(
     async (p: string, c: number, reset: boolean) => {
@@ -217,7 +222,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
                 render: (_, v) => <span style={{ fontSize: 12, fontFamily: "SF Mono, Menlo, monospace" }}>{v}</span>,
               },
             ]}
-            dataSource={keys}
+            dataSource={flatKeys}
             loading={loading}
             pagination={false}
             rowSelection={{ columnWidth: 40, selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
