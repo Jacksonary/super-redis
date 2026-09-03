@@ -55,41 +55,44 @@ export interface KeyTreeNode {
 
 /**
  * Group a flat list of Redis keys into a folder tree by a delimiter (default ":").
- * Each segment becomes a folder node; the real key is always the leaf's `key` so it
- * stays openable. Empty segments (leading / trailing / consecutive delimiters) are
- * dropped so no empty-title folder is produced.
+ *
+ * Every key is preserved as a leaf (its `key` is the real Redis key), so keys that
+ * differ only by empty segments (`a:b` vs `a::b`) never collapse. A node that is
+ * both a real key and a prefix of others is shown as an expandable folder that is
+ * still selectable (clicking its title opens the key's value). Empty segments are
+ * kept and titled with the delimiter so no key is lost to an empty-title node.
  */
 export function groupKeys(keys: string[], delimiter: string): KeyTreeNode[] {
   type N = { key: string; title: string; children: Record<string, N> };
   const root: Record<string, N> = {};
-  const collect = (raw: string, segs: string[]) => {
+  for (const raw of keys) {
+    if (raw === "") continue;
+    const segs = raw.split(delimiter);
     let cur = root;
     let path = "";
     for (let i = 0; i < segs.length; i++) {
-      path = i === 0 ? segs[0] : path + delimiter + segs[i];
-      if (!cur[path]) cur[path] = { key: path, title: segs[i], children: {} };
+      const seg = segs[i];
+      path = i === 0 ? seg : path + delimiter + seg;
+      if (!cur[path]) cur[path] = { key: path, title: seg, children: {} };
       if (i < segs.length - 1) cur = cur[path].children;
     }
     const leaf = cur[path];
     leaf.key = raw; // open the real key (may contain the delimiter)
-    leaf.title = segs[segs.length - 1];
-  };
-  for (const raw of keys) {
-    const segs = raw.split(delimiter).filter((s) => s !== "");
-    if (segs.length > 0) collect(raw, segs);
   }
   const convert = (m: Record<string, N>): KeyTreeNode[] =>
     Object.keys(m)
       .map((p) => {
         const node = m[p];
         const children = convert(node.children);
+        // Give empty segments a visible placeholder title (the delimiter).
+        const title = node.title === "" ? delimiter : node.title;
         return {
           key: node.key,
-          title: node.title,
+          title,
           children: children.length ? children : undefined,
           isLeaf: children.length === 0,
         };
       })
-      .sort((a, b) => a.title.localeCompare(b.title));
+      .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
   return convert(root);
 }
