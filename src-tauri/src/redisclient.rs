@@ -201,7 +201,11 @@ pub fn save_config(cfg: &ConfigFile) -> Result<(), String> {
         ensure_id(conn);
         store_and_strip(conn)?;
     }
-    write_config_file(&copy)
+    write_config_file(&copy)?;
+    // Invalidate the in-memory config cache so the next read reflects the change
+    // immediately (add/edit/delete connections take effect without a restart).
+    *config_cache().lock().unwrap() = None;
+    Ok(())
 }
 
 fn write_config_file(cfg: &ConfigFile) -> Result<(), String> {
