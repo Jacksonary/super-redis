@@ -189,13 +189,14 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             columns={[
               {
                 title: "Key",
+                align: "left",
                 render: (_, v) => <span style={{ fontSize: 12, fontFamily: "SF Mono, Menlo, monospace" }}>{v}</span>,
               },
             ]}
             dataSource={keys}
             loading={loading}
             pagination={false}
-            rowSelection={{ selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
+            rowSelection={{ columnWidth: 40, selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
             onRow={(record) => ({
               onClick: () => {
                 setActiveKey(record);

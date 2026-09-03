@@ -119,7 +119,13 @@ export default function App() {
           token: isDark ? { colorBgLayout: "#111213" } : { colorBgLayout: "#f0f2f5" },
         }}
       >
-        <Layout style={{ minHeight: "100vh" }}>
+        <Layout
+          style={{ minHeight: "100vh" }}
+          onContextMenu={(e) => {
+            const tag = (e.target as HTMLElement)?.tagName;
+            if (tag !== "INPUT" && tag !== "TEXTAREA") e.preventDefault();
+          }}
+        >
           <div
             ref={siderRef}
             style={{
