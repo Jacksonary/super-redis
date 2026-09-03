@@ -113,7 +113,7 @@ export default function App() {
   const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
 
   return (
-    <div data-theme={isDark ? "dark" : "light"} style={{ zoom: zoom / 100 }}>
+    <div data-theme={isDark ? "dark" : "light"} style={{ zoom: zoom !== 100 ? zoom / 100 : undefined }}>
       <ConfigProvider
         theme={{
           algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
