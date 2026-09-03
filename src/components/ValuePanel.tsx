@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Descriptions, Input, Spin, Typography, message } from "antd";
-import { CopyOutlined, CheckOutlined } from "@ant-design/icons";
+import { Button, Descriptions, Input, Spin, Tooltip, Typography, message } from "antd";
+import { CopyOutlined, CheckOutlined, ReloadOutlined } from "@ant-design/icons";
 import type { KeyInfo, SelectedTarget } from "../types";
 import { api } from "../api";
 import { formatBytes } from "../utils";
@@ -26,6 +26,7 @@ export function ValuePanel({ target, currentKey }: Props) {
   const [ttlEditing, setTtlEditing] = useState(false);
   const [ttlSecs, setTtlSecs] = useState("");
   const [keyHover, setKeyHover] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -59,8 +60,26 @@ export function ValuePanel({ target, currentKey }: Props) {
 
   if (loading) return <Spin style={{ margin: 40 }} />;
 
+  const refresh = () => {
+    setLoading(true);
+    api
+      .getKeyInfo(connId, db, currentKey)
+      .then((info) => {
+        setMeta(info);
+        setType(info.type);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    setReloadTick((t) => t + 1);
+  };
+
   return (
     <div style={{ padding: 12, height: "100%", overflow: "auto", display: "flex", flexDirection: "column", gap: 12, fontFamily: "SF Mono, Menlo, monospace" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <Tooltip title="Refresh">
+          <Button size="small" icon={<ReloadOutlined />} onClick={refresh} />
+        </Tooltip>
+      </div>
       <Descriptions size="small" column={4} style={{ fontSize: 12 }}>
         <Descriptions.Item label="Key">
           <span
@@ -109,12 +128,12 @@ export function ValuePanel({ target, currentKey }: Props) {
         <Descriptions.Item label="Size">{meta ? formatBytes(meta.size) : "-"}</Descriptions.Item>
       </Descriptions>
 
-      {type === "string" && <StringViewer target={target} currentKey={currentKey} />}
-      {type === "hash" && <HashViewer target={target} currentKey={currentKey} />}
-      {type === "list" && <ListViewer target={target} currentKey={currentKey} />}
-      {type === "set" && <SetViewer target={target} currentKey={currentKey} />}
-      {type === "zset" && <ZSetViewer target={target} currentKey={currentKey} />}
-      {type === "stream" && <StreamViewer target={target} currentKey={currentKey} />}
+      {type === "string" && <StringViewer key={reloadTick} target={target} currentKey={currentKey} />}
+      {type === "hash" && <HashViewer key={reloadTick} target={target} currentKey={currentKey} />}
+      {type === "list" && <ListViewer key={reloadTick} target={target} currentKey={currentKey} />}
+      {type === "set" && <SetViewer key={reloadTick} target={target} currentKey={currentKey} />}
+      {type === "zset" && <ZSetViewer key={reloadTick} target={target} currentKey={currentKey} />}
+      {type === "stream" && <StreamViewer key={reloadTick} target={target} currentKey={currentKey} />}
       {type === "ReJSON" && <Text type="secondary">RedisJSON is coming in a later phase</Text>}
     </div>
   );

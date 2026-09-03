@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Table, Tree, Input, Button, Space, Tooltip, Modal, Form, Input as InputField, Select, Segmented, Popconfirm, message } from "antd";
 import { ReloadOutlined, PlusOutlined, SearchOutlined, FolderOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
@@ -26,6 +26,19 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
   const [delimiter, setDelimiter] = useState(":");
   const [loadingAll, setLoadingAll] = useState(false);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+
+  // Measure the list/tree area so it fills the available height adaptively
+  // (instead of a hardcoded calc that can overflow or leave a gap).
+  const fillRef = useRef<HTMLDivElement>(null);
+  const [fillH, setFillH] = useState(400);
+  useLayoutEffect(() => {
+    const el = fillRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setFillH(el.clientHeight));
+    ro.observe(el);
+    setFillH(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
 
   const [newOpen, setNewOpen] = useState(false);
   const [renameKey, setRenameKey] = useState<string | null>(null);
@@ -191,8 +204,8 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         </div>
       )}
 
-      {view === "flat" ? (
-        <div style={{ flex: 1, overflow: "auto" }}>
+      <div ref={fillRef} style={{ flex: 1, minHeight: 0 }}>
+        {view === "flat" ? (
           <Table<string>
             size="small"
             rowKey={(v) => v}
@@ -215,11 +228,9 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
               },
             })}
             rowClassName={(r) => (r === activeKey ? "ant-table-row-selected" : "")}
-            scroll={{ y: "calc(100vh - 240px)" }}
+            scroll={{ y: fillH }}
           />
-        </div>
-      ) : (
-        <div style={{ flex: 1, overflow: "auto", padding: 4 }}>
+        ) : (
           <Tree
             className="key-tree"
             treeData={treeData}
@@ -227,7 +238,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             expandAction="click"
             expandedKeys={expandedKeys}
             onExpand={(keys) => setExpandedKeys(keys as string[])}
-            height={Math.max(320, window.innerHeight - 230)}
+            height={fillH}
             titleRender={(node) => (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 {!node.isLeaf &&
@@ -255,10 +266,10 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
               }
             }}
           />
-        </div>
-      )}
+        )}
+      </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
         {cursor !== 0 && (
           <Button size="small" loading={loading} onClick={() => load(pattern, cursor, false)}>
             Load more
