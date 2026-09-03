@@ -9,6 +9,7 @@ import { TerminalTab } from "./TerminalTab";
 const { Text } = Typography;
 
 export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: boolean }) {
+  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [splitRatio, setSplitRatio] = useState(0.42);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -41,7 +42,7 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
       onMouseUp={stopDrag}
     >
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <div style={{ width: `${splitRatio * 100}%`, minWidth: 260, borderRight: "1px solid rgba(0,0,0,0.08)" }}>
+        <div style={{ width: `${splitRatio * 100}%`, minWidth: 260, borderRight: `1px solid ${borderColor}` }}>
           <KeyBrowser target={target} onSelectKey={setSelectedKey} />
         </div>
         <div
@@ -59,7 +60,7 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid rgba(0,0,0,0.08)", height: terminalOpen ? "38vh" : 40, transition: "height .2s" }}>
+      <div style={{ borderTop: `1px solid ${borderColor}`, height: terminalOpen ? "38vh" : 40, transition: "height .2s" }}>
         <div
           style={{ height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px" }}
         >

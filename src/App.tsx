@@ -105,7 +105,11 @@ export default function App() {
     setTasks((prev) => prev.map((t) => (t.id === p.task_id ? { ...t, status } : t)));
   });
 
-  const { token } = theme.useToken();
+  // Compute layout colors directly from the theme. `theme.useToken()` yields the
+  // DEFAULT (light) tokens when called outside `<ConfigProvider>`, which is why the
+  // sidebar and content could end up in different palettes.
+  const contentBg = isDark ? "#111213" : "#f0f2f5";
+  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
 
   return (
     <div data-theme={isDark ? "dark" : "light"} style={{ zoom: zoom / 100 }}>
@@ -121,7 +125,7 @@ export default function App() {
             style={{
               width: sidebarWidth,
               background: "transparent",
-              borderRight: `1px solid ${token.colorBorderSecondary}`,
+              borderRight: `1px solid ${borderColor}`,
               height: "100vh",
               position: "fixed",
               left: 0,
@@ -151,7 +155,7 @@ export default function App() {
           </div>
 
           <div ref={contentRef} style={{ marginLeft: sidebarWidth }}>
-            <Content style={{ background: token.colorBgLayout, minHeight: "100vh" }}>
+            <Content style={{ background: contentBg, minHeight: "100vh" }}>
               {selected ? (
                 <Workspace
                   key={`${selected.connectionId}-${selected.db}`}

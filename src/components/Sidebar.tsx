@@ -29,6 +29,7 @@ interface Props {
 
 export function Sidebar(props: Props) {
   const { connections, selected, onSelect, onConnectionsChange } = props;
+  const borderColor = props.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ConnectionSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConnectionSummary | null>(null);
@@ -174,7 +175,7 @@ export function Sidebar(props: Props) {
         />
       </div>
 
-      <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+      <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}` }}>
         <Text type="secondary" style={{ fontSize: 11 }}>Super Redis</Text>
       </div>
 
