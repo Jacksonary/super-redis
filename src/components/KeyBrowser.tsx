@@ -258,9 +258,10 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
                 setActiveFolder(null);
                 onSelectKey(key);
               } else {
+                // A folder: just track it for the "Delete folder" action, and let
+                // expandAction toggle it. Do NOT change the right-hand panel.
                 setActiveFolder(key);
                 setActiveKey(null);
-                onSelectKey("");
               }
             }}
           />
