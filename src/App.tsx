@@ -163,7 +163,7 @@ export default function App() {
                   <DatabaseOutlined className="empty-state-icon" />
                   <Text style={{ fontSize: 15, fontWeight: 600 }}>Super Redis</Text>
                   <Text type="secondary" style={{ fontSize: 13 }}>
-                    {locale === "zh-CN" ? "从左侧选择一个连接开始浏览" : "Choose a connection from the sidebar"}
+                    {locale === "zh-CN" ? "Choose a connection from the sidebar" : "Choose a connection from the sidebar"}
                   </Text>
                 </div>
               )}
@@ -179,7 +179,6 @@ export default function App() {
           isDark={isDark}
           onThemeToggle={toggleTheme}
           locale={locale}
-          onLocaleChange={changeLocale}
           zoom={zoom}
           setZoom={(z) => {
             setZoom(z);

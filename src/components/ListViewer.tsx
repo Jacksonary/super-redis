@@ -71,10 +71,10 @@ export function ListViewer({ target, currentKey }: Props) {
           { title: "Index", width: 70, render: (_, __, i) => <span style={{ fontSize: 12 }}>{page * PAGE + i}</span> },
           { title: "Value", render: (_, v) => <span style={{ fontSize: 12 }}>{v}</span> },
           {
-            title: "操作",
+            title: "Actions",
             width: 90,
             render: (_, v) => (
-              <Button size="small" type="link" danger onClick={() => remove(v)}>删除</Button>
+              <Button size="small" type="link" danger onClick={() => remove(v)}>Delete</Button>
             ),
           },
         ]}
@@ -84,9 +84,9 @@ export function ListViewer({ target, currentKey }: Props) {
         scroll={{ y: "calc(100vh - 360px)" }}
       />
       <Space style={{ justifyContent: "flex-end" }}>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>共 {total} 项，第 {page + 1} 页</span>
-        <Button size="small" disabled={page === 0} onClick={() => { setPage((p) => p - 1); load(page - 1); }}>上一页</Button>
-        <Button size="small" disabled={(page + 1) * PAGE >= total} onClick={() => { setPage((p) => p + 1); load(page + 1); }}>下一页</Button>
+        <span style={{ fontSize: 12, opacity: 0.6 }}>Total {total} items, page {page + 1}</span>
+        <Button size="small" disabled={page === 0} onClick={() => { setPage((p) => p - 1); load(page - 1); }}>Prev</Button>
+        <Button size="small" disabled={(page + 1) * PAGE >= total} onClick={() => { setPage((p) => p + 1); load(page + 1); }}>Next</Button>
       </Space>
     </div>
   );

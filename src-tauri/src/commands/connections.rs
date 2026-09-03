@@ -103,7 +103,7 @@ fn emit_connection_state(app: &tauri::AppHandle, id: &str, ok: bool) {
         ConnectionStateEvent {
             id: id.to_string(),
             status: if ok { "ok".to_string() } else { "error".to_string() },
-            error: if ok { None } else { Some("连接失败".to_string()) },
+            error: if ok { None } else { Some("Connection failed".to_string()) },
         },
     );
 }

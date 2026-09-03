@@ -307,8 +307,8 @@ fn value_to_string(v: &redis::Value) -> String {
 }
 
 fn split_host_port(s: &str) -> Result<(String, u16), String> {
-    let (h, p) = s.rsplit_once(':').ok_or_else(|| format!("无效的 host:port: {s}"))?;
-    let port = p.parse::<u16>().map_err(|e| format!("无效端口: {e}"))?;
+    let (h, p) = s.rsplit_once(':').ok_or_else(|| format!("Invalid host:port: {s}"))?;
+    let port = p.parse::<u16>().map_err(|e| format!("Invalid port: {e}"))?;
     Ok((h.to_string(), port))
 }
 
@@ -401,7 +401,7 @@ impl Session {
             Ok(c)
         } else {
             // Cluster connections execute commands via `query`, not `single_conn`.
-            Err("cluster 连接通过 query 执行, 不支持 single_conn".to_string())
+            Err("cluster connection uses query, not single_conn".to_string())
         }
     }
 
@@ -509,12 +509,12 @@ fn format_redis_error(e: redis::RedisError) -> String {
     // rendered message instead to stay portable.
     let s = e.to_string();
     if s.contains("WRONGPASS") || s.contains("NOAUTH") || s.to_lowercase().contains("auth") {
-        "认证失败: 请检查用户名/密码".to_string()
+        "Auth failed: check username/password".to_string()
     } else if s.to_lowercase().contains("connection refused")
         || s.contains("tcp connect")
         || s.contains("failed to be resolved")
     {
-        "连接失败, 请检查主机/端口/网络".to_string()
+        "Connection failed, check host/port/network".to_string()
     } else {
         format!("redis: {s}")
     }

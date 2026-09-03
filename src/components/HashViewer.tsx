@@ -70,9 +70,9 @@ export function HashViewer({ target, currentKey }: Props) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <Space>
-        <Button size="small" type="primary" onClick={() => setAddOpen(true)}>新增字段</Button>
+        <Button size="small" type="primary" onClick={() => setAddOpen(true)}>Add field</Button>
         {cursor !== 0 && (
-          <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>加载更多</Button>
+          <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>Load more</Button>
         )}
       </Space>
       <Table<HashField>
@@ -82,12 +82,12 @@ export function HashViewer({ target, currentKey }: Props) {
           { title: "Field", dataIndex: "field", ellipsis: true },
           { title: "Value", dataIndex: "value", render: (v: string) => <span style={{ fontSize: 12 }}>{v}</span> },
           {
-            title: "操作",
+            title: "Actions",
             width: 120,
             render: (_, r) => (
               <Space size={4}>
-                <Button size="small" type="link" onClick={() => setEditing({ ...r })}>编辑</Button>
-                <Button size="small" type="link" danger onClick={() => remove(r.field)}>删除</Button>
+                <Button size="small" type="link" onClick={() => setEditing({ ...r })}>Edit</Button>
+                <Button size="small" type="link" danger onClick={() => remove(r.field)}>Delete</Button>
               </Space>
             ),
           },
@@ -98,14 +98,14 @@ export function HashViewer({ target, currentKey }: Props) {
         scroll={{ y: "calc(100vh - 340px)" }}
       />
 
-      <Modal open={addOpen} title="新增字段" okText="确定" cancelText="取消" onOk={doAdd} onCancel={() => setAddOpen(false)}>
+      <Modal open={addOpen} title="Add field" okText="OK" cancelText="Cancel" onOk={doAdd} onCancel={() => setAddOpen(false)}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Input placeholder="field" value={newField} onChange={(e) => setNewField(e.target.value)} />
           <Input placeholder="value" value={newValue} onChange={(e) => setNewValue(e.target.value)} />
         </Space>
       </Modal>
 
-      <Modal open={!!editing} title={`编辑: ${editing?.field}`} okText="保存" cancelText="取消" onOk={doEdit} onCancel={() => setEditing(null)}>
+      <Modal open={!!editing} title={`Edit: ${editing?.field}`} okText="Save" cancelText="Cancel" onOk={doEdit} onCancel={() => setEditing(null)}>
         <Input
           placeholder="value"
           value={editing?.value ?? ""}

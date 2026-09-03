@@ -62,9 +62,9 @@ export function SetViewer({ target, currentKey }: Props) {
           onChange={(e) => setNewMember(e.target.value)}
           onPressEnter={add}
         />
-        <Button size="small" type="primary" onClick={add}>新增成员</Button>
+        <Button size="small" type="primary" onClick={add}>Add member</Button>
         {cursor !== 0 && (
-          <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>加载更多</Button>
+          <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>Load more</Button>
         )}
       </Space>
       <Table<string>
@@ -73,10 +73,10 @@ export function SetViewer({ target, currentKey }: Props) {
         columns={[
           { title: "Member", render: (_, v) => <span style={{ fontSize: 12 }}>{v}</span> },
           {
-            title: "操作",
+            title: "Actions",
             width: 90,
             render: (_, v) => (
-              <Button size="small" type="link" danger onClick={() => remove(v)}>删除</Button>
+              <Button size="small" type="link" danger onClick={() => remove(v)}>Delete</Button>
             ),
           },
         ]}

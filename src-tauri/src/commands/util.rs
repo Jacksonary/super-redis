@@ -95,3 +95,45 @@ pub async fn key_info(conn_id: &str, db: i64, key: &str) -> Result<KeyInfo, Stri
         encoding,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use redis::Value;
+
+    fn bs(s: &str) -> Value {
+        Value::BulkString(s.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn test_parse_scan() {
+        let v = Value::Array(vec![bs("12"), Value::Array(vec![bs("a"), bs("b"), bs("c")])]);
+        let (cursor, keys) = parse_scan(&v);
+        assert_eq!(cursor, 12);
+        assert_eq!(keys, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+    }
+
+    #[test]
+    fn test_val_to_string() {
+        assert_eq!(val_to_string(&bs("hello")), "hello");
+        assert_eq!(val_to_string(&Value::Int(42)), "42");
+        assert_eq!(val_to_string(&Value::Nil), "");
+        assert_eq!(val_to_string(&Value::Okay), "OK");
+        assert_eq!(val_to_string(&Value::SimpleString("pong".into())), "pong");
+        assert_eq!(val_to_string(&Value::Boolean(true)), "true");
+    }
+
+    #[test]
+    fn test_val_to_i64() {
+        assert_eq!(val_to_i64(&Value::Int(7)), 7);
+        assert_eq!(val_to_i64(&bs("123")), 123);
+        assert_eq!(val_to_i64(&Value::Nil), 0);
+        assert_eq!(val_to_i64(&bs("notnum")), 0);
+    }
+
+    #[test]
+    fn test_val_to_string_array() {
+        let v = Value::Array(vec![bs("LRANGE"), bs("0"), bs("1")]);
+        assert_eq!(val_to_string(&v), "LRANGE, 0, 1");
+    }
+}

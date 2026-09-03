@@ -40,10 +40,10 @@ export function StringViewer({ target, currentKey }: Props) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <Space>
-        <Button size="small" onClick={save} disabled={loading} type="primary">保存</Button>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>{binary ? "二进制值" : json ? "JSON" : "文本"}</span>
+        <Button size="small" onClick={save} disabled={loading} type="primary">Save</Button>
+        <span style={{ fontSize: 12, opacity: 0.6 }}>{binary ? "binary" : json ? "JSON" : "text"}</span>
         {json && value && (
-          <Button size="small" onClick={() => setValue(prettyJson(value))}>格式化</Button>
+          <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
         )}
       </Space>
       <TextArea

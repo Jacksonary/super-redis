@@ -4,8 +4,8 @@ import { zhCN } from "./locales/zh-CN";
 type Dict = Record<string, string>;
 const dictionaries: Record<string, Dict> = { en, "zh-CN": zhCN };
 
-let activeLocale: string = localStorage.getItem("language") ?? "zh-CN";
-if (!dictionaries[activeLocale]) activeLocale = "zh-CN";
+let activeLocale: string = localStorage.getItem("language") ?? "en";
+if (!dictionaries[activeLocale]) activeLocale = "en";
 
 export function setLocale(l: string) {
   activeLocale = dictionaries[l] ? l : "zh-CN";

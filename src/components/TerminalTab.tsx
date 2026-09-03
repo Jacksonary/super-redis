@@ -52,7 +52,7 @@ export function TerminalTab({ target }: Props) {
           borderRadius: 6,
         }}
       >
-        {log.length === 0 && <Text type="secondary">输入命令并回车，例如：SET k v / GET k / KEYS *</Text>}
+        {log.length === 0 && <Text type="secondary">Enter a command, e.g. SET k v / GET k</Text>}
         {log.map((l, i) => (
           <div key={i} style={{ marginBottom: 6 }}>
             <div style={{ fontWeight: 600 }}>
@@ -78,8 +78,8 @@ export function TerminalTab({ target }: Props) {
           }}
           disabled={running}
         />
-        <Button type="primary" onClick={run} loading={running} disabled={!input.trim()}>运行</Button>
-        <Button size="small" onClick={() => setLog([])}>清空</Button>
+        <Button type="primary" onClick={run} loading={running} disabled={!input.trim()}>Run</Button>
+        <Button size="small" onClick={() => setLog([])}>Clear</Button>
       </Space>
     </div>
   );

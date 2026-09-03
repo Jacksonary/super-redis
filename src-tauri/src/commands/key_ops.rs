@@ -9,7 +9,7 @@ pub async fn create_key(conn_id: String, db: i64, key: String, value_type: Strin
         "list" => vec!["RPUSH".to_string(), key, "".to_string()],
         "set" => vec!["SADD".to_string(), key, "".to_string()],
         "zset" => vec!["ZADD".to_string(), key, "0".to_string(), "".to_string()],
-        other => return Err(format!("不支持的 key 类型: {other}")),
+        other => return Err(format!("Unsupported key type: {other}")),
     };
     let _ = s.query(db, args).await?;
     Ok(serde_json::json!({ "ok": true }))

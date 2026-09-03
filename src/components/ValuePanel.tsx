@@ -48,7 +48,7 @@ export function ValuePanel({ target, currentKey }: Props) {
       {type === "list" && <ListViewer target={target} currentKey={currentKey} />}
       {type === "set" && <SetViewer target={target} currentKey={currentKey} />}
       {(type === "zset" || type === "stream" || type === "REJSON") && (
-        <Text type="secondary">该类型编辑器在 P1 阶段提供</Text>
+        <Text type="secondary">This type editor is coming in Phase 1</Text>
       )}
     </div>
   );

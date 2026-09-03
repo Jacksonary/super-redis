@@ -66,7 +66,7 @@ pub async fn run_terminal_command(conn_id: String, db: i64, command: String) -> 
     }
     let args = parse_args(trimmed);
     if is_blocking(&args[0]) {
-        return Err(format!("阻塞命令 {} 需在独立连接执行，当前终端不直接支持", args[0]));
+        return Err(format!("Blocking command {} requires a dedicated connection; not supported here", args[0]));
     }
     let s = session(&conn_id).await?;
     let v = s.query(db, args).await?;

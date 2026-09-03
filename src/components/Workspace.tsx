@@ -53,7 +53,7 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
             <ValuePanel target={target} currentKey={selectedKey} key={selectedKey} />
           ) : (
             <div className="empty-state-wrap" style={{ height: "100%", justifyContent: "center", padding: 24 }}>
-              <Text type="secondary">{isDark ? "Please select a key" : "请选择一个 key 查看值"}</Text>
+              <Text type="secondary">{isDark ? "Please select a key" : "Please select a key"}</Text>
             </div>
           )}
         </div>
@@ -69,7 +69,7 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
             icon={<ConsoleSqlOutlined />}
             onClick={() => setTerminalOpen((v) => !v)}
           >
-            {isDark ? "Terminal" : "终端"}
+            {isDark ? "Terminal" : "Terminal"}
           </Button>
         </div>
         {terminalOpen && <TerminalTab target={target} />}

@@ -57,7 +57,7 @@ export function TaskPanel({ tasks, onDismiss }: Props) {
       onOpenChange={setOpen}
       trigger="click"
       content={content}
-      title={<Text style={{ fontSize: 13 }}>Tasks / 任务</Text>}
+      title={<Text style={{ fontSize: 13 }}>Tasks / Tasks</Text>}
     >
       <div
         style={{

@@ -61,7 +61,7 @@ export function Sidebar(props: Props) {
   const rowMenu = (conn: ConnectionSummary) => [
     {
       key: "edit",
-      label: props.locale === "zh-CN" ? "编辑" : "Edit",
+      label: props.locale === "zh-CN" ? "Edit" : "Edit",
       icon: <EditOutlined />,
       onClick: () => {
         setEditing(conn);
@@ -70,20 +70,20 @@ export function Sidebar(props: Props) {
     },
     {
       key: "clone",
-      label: props.locale === "zh-CN" ? "克隆" : "Clone",
+      label: props.locale === "zh-CN" ? "Clone" : "Clone",
       icon: <CopyOutlined />,
       onClick: () => api.cloneConnection(conn.id).then(() => onConnectionsChange()),
     },
     {
       key: "test",
-      label: props.locale === "zh-CN" ? "测试连接" : "Test Connection",
+      label: props.locale === "zh-CN" ? "Test Connection" : "Test Connection",
       icon: <ApiOutlined />,
       onClick: () => api.testConnection(conn.id),
     },
     { type: "divider" as const },
     {
       key: "delete",
-      label: props.locale === "zh-CN" ? "删除" : "Delete",
+      label: props.locale === "zh-CN" ? "Delete" : "Delete",
       icon: <DeleteOutlined />,
       danger: true,
       onClick: () => setConfirmDelete(conn),
@@ -101,13 +101,13 @@ export function Sidebar(props: Props) {
         }}
       >
         <Text strong style={{ fontSize: 14 }}>
-          {props.locale === "zh-CN" ? "连接" : "Connections"}
+          {props.locale === "zh-CN" ? "Connections" : "Connections"}
         </Text>
         <Space>
-          <Tooltip title={props.locale === "zh-CN" ? "新增连接" : "New connection"}>
+          <Tooltip title={props.locale === "zh-CN" ? "New Connection" : "New connection"}>
             <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setFormOpen(true); }} />
           </Tooltip>
-          <Tooltip title={props.locale === "zh-CN" ? "设置" : "Settings"}>
+          <Tooltip title={props.locale === "zh-CN" ? "Settings" : "Settings"}>
             <Button size="small" icon={<SettingOutlined />} onClick={props.onOpenSettings} />
           </Tooltip>
         </Space>
@@ -116,7 +116,7 @@ export function Sidebar(props: Props) {
       <div style={{ flex: 1, overflow: "auto", padding: "0 6px" }}>
         {groups.length === 0 && (
           <div style={{ padding: 16, textAlign: "center", opacity: 0.5 }}>
-            <Text type="secondary">{props.locale === "zh-CN" ? "暂无连接" : "No connections yet"}</Text>
+            <Text type="secondary">{props.locale === "zh-CN" ? "No connections yet" : "No connections yet"}</Text>
           </div>
         )}
         <List
@@ -191,16 +191,16 @@ export function Sidebar(props: Props) {
 
       <Modal
         open={!!confirmDelete}
-        title={props.locale === "zh-CN" ? "删除连接" : "Delete connection"}
-        okText={props.locale === "zh-CN" ? "确定" : "OK"}
-        cancelText={props.locale === "zh-CN" ? "取消" : "Cancel"}
+        title={props.locale === "zh-CN" ? "Delete Connection" : "Delete connection"}
+        okText={props.locale === "zh-CN" ? "OK" : "OK"}
+        cancelText={props.locale === "zh-CN" ? "Cancel" : "Cancel"}
         onOk={handleDelete}
         onCancel={() => setConfirmDelete(null)}
         okButtonProps={{ danger: true }}
       >
         {confirmDelete
           ? props.locale === "zh-CN"
-            ? `确定删除连接「${confirmDelete.name}」？`
+            ? `Delete connection "${confirmDelete.name}」？`
             : `Delete connection "${confirmDelete.name}"?`
           : ""}
       </Modal>

@@ -251,7 +251,7 @@ fn default_theme() -> String { "light".to_string() }
 fn default_font() -> String { "SF Mono".to_string() }
 fn default_font_size() -> u32 { 14 }
 fn default_zoom() -> u32 { 100 }
-fn default_language() -> String { "zh-CN".to_string() }
+fn default_language() -> String { "en".to_string() }
 fn default_scan_count() -> u64 { 1000 }
 fn default_terminal_history() -> u32 { 500 }
 

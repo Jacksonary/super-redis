@@ -18,8 +18,8 @@ export function formatTimestamp(secs: number): string {
 }
 
 export function ttlText(ttl: number): string {
-  if (ttl === -1) return "永久";
-  if (ttl === -2) return "不存在";
+  if (ttl === -1) return "permanent";
+  if (ttl === -2) return "missing";
   if (ttl >= 60) return `${Math.floor(ttl / 60)}m${ttl % 60}s`;
   return `${ttl}s`;
 }

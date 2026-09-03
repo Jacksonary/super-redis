@@ -131,7 +131,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 8 }}>
       <Space style={{ marginBottom: 8 }}>
         <Input.Search
-          placeholder="搜索 key (pattern)"
+          placeholder="Search key (pattern)"
           allowClear
           prefix={<SearchOutlined />}
           style={{ width: 240 }}
@@ -142,15 +142,15 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             refreshCount();
           }}
         />
-        <Tooltip title="刷新">
+        <Tooltip title="Refresh">
           <Button icon={<ReloadOutlined />} onClick={() => load(pattern, 0, true)} />
         </Tooltip>
-        <Tooltip title="新建 Key">
+        <Tooltip title="New Key">
           <Button icon={<PlusOutlined />} onClick={() => setNewOpen(true)} />
         </Tooltip>
         {selectedRowKeys.length > 0 && (
-          <Popconfirm title={`删除 ${selectedRowKeys.length} 个 key?`} onConfirm={() => doDelete(selectedRowKeys)}>
-            <Button danger size="small">删除</Button>
+          <Popconfirm title={`Delete ${selectedRowKeys.length}  keys?`} onConfirm={() => doDelete(selectedRowKeys)}>
+            <Button danger size="small">Delete</Button>
           </Popconfirm>
         )}
       </Space>
@@ -177,21 +177,21 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8 }}>
         <span style={{ fontSize: 12, opacity: 0.6 }}>
-          {total >= 0 ? `共 ${total} 个 key` : "..."}
+          {total >= 0 ? `Total ${total}  keys` : "..."}
         </span>
         {cursor !== 0 && (
           <Button size="small" loading={loading} onClick={() => load(pattern, cursor, false)}>
-            加载更多
+            Load more
           </Button>
         )}
       </div>
 
-      <Modal open={newOpen} title="新建 Key" onOk={doNew} onCancel={() => setNewOpen(false)} okText="确定" cancelText="取消">
+      <Modal open={newOpen} title="New Key" onOk={doNew} onCancel={() => setNewOpen(false)} okText="OK" cancelText="Cancel">
         <Form form={form} layout="vertical" size="small" preserve={false}>
           <Form.Item name="key" label="Key" rules={[{ required: true }]}>
             <InputField />
           </Form.Item>
-          <Form.Item name="type" label="类型" initialValue="string">
+          <Form.Item name="type" label="Type" initialValue="string">
             <Select
               options={["string", "hash", "list", "set", "zset"].map((t) => ({ value: t, label: t }))}
             />
@@ -199,17 +199,17 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         </Form>
       </Modal>
 
-      <Modal open={!!renameKey} title="重命名" onOk={doRename} onCancel={() => setRenameKey(null)} okText="确定" cancelText="取消">
+      <Modal open={!!renameKey} title="Rename" onOk={doRename} onCancel={() => setRenameKey(null)} okText="OK" cancelText="Cancel">
         <Form form={form} layout="vertical" size="small" preserve={false}>
-          <Form.Item name="dst" label="新名称" rules={[{ required: true }]}>
+          <Form.Item name="dst" label="New name" rules={[{ required: true }]}>
             <InputField />
           </Form.Item>
         </Form>
       </Modal>
 
-      <Modal open={!!ttlKey} title="设置过期时间 (秒)" onOk={doTtl} onCancel={() => setTtlKey(null)} okText="确定" cancelText="取消">
+      <Modal open={!!ttlKey} title="Set TTL (seconds)" onOk={doTtl} onCancel={() => setTtlKey(null)} okText="OK" cancelText="Cancel">
         <Form form={form} layout="vertical" size="small" preserve={false}>
-          <Form.Item name="seconds" label="秒 (0 或留空 = 清除剩余过期)" initialValue={60} rules={[{ required: true }]}>
+          <Form.Item name="seconds" label="Seconds (0 or empty = clear TTL)" initialValue={60} rules={[{ required: true }]}>
             <InputField type="number" />
           </Form.Item>
         </Form>
