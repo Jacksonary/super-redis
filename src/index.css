@@ -16,6 +16,13 @@ body,
   font-size: 12.5px;
 }
 
+/* Key folder tree: hide antd's +/- switcher gutter — the folder icon itself is the
+   toggle, so there should be no blank clickable area to the left. */
+.key-tree .ant-tree-switcher {
+  width: 0 !important;
+  display: none !important;
+}
+
 .empty-state-wrap {
   display: flex;
   flex-direction: column;
