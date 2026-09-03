@@ -16,7 +16,6 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
   const { connectionId: connId, db } = target;
   const [keys, setKeys] = useState<string[]>([]);
   const [cursor, setCursor] = useState<number>(0);
-  const [total, setTotal] = useState<number>(-1);
   const [pattern, setPattern] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
@@ -52,19 +51,14 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
     [connId, db]
   );
 
-  const refreshCount = useCallback(() => {
-    api.getKeyCount(connId, db).then(setTotal).catch(() => {});
-  }, [connId, db]);
-
   useEffect(() => {
     setKeys([]);
     setCursor(0);
     setPattern("");
     setSelectedRowKeys([]);
     setActiveKey(null);
-    refreshCount();
     load("", 0, true);
-  }, [connId, db, load, refreshCount]);
+  }, [connId, db, load]);
 
   // "Load all keys" for the tree view: page through SCAN until the cursor ends.
   const loadAll = async () => {
@@ -95,7 +89,6 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
       onSelectKey("");
       setActiveKey(null);
     }
-    refreshCount();
     load(pattern, 0, true);
   };
 
@@ -138,8 +131,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
       });
       message.success("created");
       setNewOpen(false);
-      refreshCount();
-      load(pattern, 0, true);
+        load(pattern, 0, true);
     } catch (e) {
       message.error(String(e));
     }
@@ -157,8 +149,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
           onSearch={(v) => {
             setPattern(v);
             load(v, 0, true);
-            refreshCount();
-          }}
+                  }}
         />
         <Segmented value={view} onChange={(v) => setView(v as "flat" | "tree")} options={["flat", "tree"]} />
         <Tooltip title="Refresh">
@@ -191,8 +182,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
                 const res = await api.deleteKeysByPattern(connId, db, `${activeFolder}${delimiter}*`);
                 message.success(`deleted ${res.deleted}`);
                 setActiveFolder(null);
-                refreshCount();
-                load(pattern, 0, true);
+                            load(pattern, 0, true);
               }}
             >
               <Button size="small" danger>Delete folder</Button>
@@ -269,7 +259,6 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8 }}>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>{total >= 0 ? `${total} keys` : "..."}</span>
         {cursor !== 0 && (
           <Button size="small" loading={loading} onClick={() => load(pattern, cursor, false)}>
             Load more
