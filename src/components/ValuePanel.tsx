@@ -7,6 +7,8 @@ import { StringViewer } from "./StringViewer";
 import { HashViewer } from "./HashViewer";
 import { ListViewer } from "./ListViewer";
 import { SetViewer } from "./SetViewer";
+import { ZSetViewer } from "./ZSetViewer";
+import { StreamViewer } from "./StreamViewer";
 
 const { Text } = Typography;
 
@@ -48,9 +50,9 @@ export function ValuePanel({ target, currentKey }: Props) {
       {type === "hash" && <HashViewer target={target} currentKey={currentKey} />}
       {type === "list" && <ListViewer target={target} currentKey={currentKey} />}
       {type === "set" && <SetViewer target={target} currentKey={currentKey} />}
-      {(type === "zset" || type === "stream" || type === "REJSON") && (
-        <Text type="secondary">This type editor is coming in Phase 1</Text>
-      )}
+      {type === "zset" && <ZSetViewer target={target} currentKey={currentKey} />}
+      {type === "stream" && <StreamViewer target={target} currentKey={currentKey} />}
+      {type === "ReJSON" && <Text type="secondary">RedisJSON is coming in a later phase</Text>}
     </div>
   );
 }

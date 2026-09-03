@@ -167,6 +167,7 @@ export default function App() {
                   key={`${selected.connectionId}-${selected.db}`}
                   target={selected}
                   isDark={isDark}
+                  onDbChange={(db) => setSelected({ connectionId: selected.connectionId, db })}
                 />
               ) : (
                 <div className="empty-state-wrap" style={{ height: "100vh", justifyContent: "center" }}>

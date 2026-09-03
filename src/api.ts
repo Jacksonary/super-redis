@@ -10,7 +10,11 @@ import type {
   ListItemsResult,
   ListKeysResult,
   SetMembersResult,
+  SlowlogEntry,
+  StreamEntry,
+  StreamInfo,
   StringValue,
+  ZSetItemsResult,
 } from "./types";
 
 export const api = {
@@ -190,6 +194,48 @@ export const api = {
   },
   clearCommandHistory(): Promise<{ ok: boolean }> {
     return invoke("clear_command_history");
+  },
+
+  // ─── Values: zset ──────────────────────────────────────────────────────
+  getZsetItems(connId: string, db: number, key: string, cursor?: string, count?: number): Promise<ZSetItemsResult> {
+    return invoke("get_zset_items", { connId, db, key, cursor: cursor ?? null, count: count ?? null });
+  },
+  addZsetItem(connId: string, db: number, key: string, member: string, score: number): Promise<{ added: number }> {
+    return invoke("add_zset_item", { connId, db, key, member, score });
+  },
+  deleteZsetItem(connId: string, db: number, key: string, members: string[]): Promise<{ removed: number }> {
+    return invoke("delete_zset_item", { connId, db, key, members });
+  },
+
+  // ─── Values: stream ────────────────────────────────────────────────────
+  getStreamInfo(connId: string, db: number, key: string): Promise<StreamInfo> {
+    return invoke("get_stream_info", { connId, db, key });
+  },
+  readStreamEntries(connId: string, db: number, key: string, start?: string, end?: string, count?: number): Promise<{ entries: StreamEntry[] }> {
+    return invoke("read_stream_entries", { connId, db, key, start: start ?? null, end: end ?? null, count: count ?? null });
+  },
+  addStreamEntry(connId: string, db: number, key: string, fields: Record<string, string>): Promise<{ id: string }> {
+    return invoke("add_stream_entry", { connId, db, key, fields });
+  },
+  deleteStreamEntry(connId: string, db: number, key: string, ids: string[]): Promise<{ deleted: number }> {
+    return invoke("delete_stream_entry", { connId, db, key, ids });
+  },
+  createConsumerGroup(connId: string, db: number, key: string, group: string): Promise<{ ok: boolean }> {
+    return invoke("create_consumer_group", { connId, db, key, group });
+  },
+
+  // ─── Monitor / info ────────────────────────────────────────────────────
+  getDbCount(connId: string): Promise<number> {
+    return invoke("get_db_count", { connId });
+  },
+  getServerInfo(connId: string): Promise<unknown> {
+    return invoke("get_server_info", { connId });
+  },
+  getSlowlog(connId: string, db: number, count?: number): Promise<{ entries: SlowlogEntry[] }> {
+    return invoke("get_slowlog", { connId, db, count: count ?? null });
+  },
+  clearSlowlog(connId: string, db: number): Promise<{ ok: boolean }> {
+    return invoke("clear_slowlog", { connId, db });
   },
 };
 

@@ -154,21 +154,32 @@ fn read_config_file() -> ConfigFile {
         .unwrap_or_default()
 }
 
+// In-memory cache of the hydrated config file. Holds the keyring secrets so we
+// touch the OS keychain at most once per process instead of once per command /
+// refresh — this dramatically reduces macOS keychain authorization prompts.
+static CONFIG_CACHE: OnceLock<Mutex<Option<ConfigFile>>> = OnceLock::new();
+fn config_cache() -> &'static Mutex<Option<ConfigFile>> {
+    CONFIG_CACHE.get_or_init(|| Mutex::new(None))
+}
+
 /// Load the full config file, hydrating any secrets held in the keyring.
 pub fn load_config() -> Result<ConfigFile, String> {
     let _guard = config_lock().lock().unwrap();
+    if let Some(cfg) = config_cache().lock().unwrap().as_ref() {
+        return Ok(cfg.clone());
+    }
     let mut cfg = read_config_file();
     for conn in cfg.connections.iter_mut() {
         ensure_id(conn);
         hydrate_secrets(conn);
     }
+    *config_cache().lock().unwrap() = Some(cfg.clone());
     Ok(cfg)
 }
 
 /// Load config and assign ids to any connections that lack one, persisting back.
 pub fn load_config_with_ids() -> Result<ConfigFile, String> {
-    let _guard = config_lock().lock().unwrap();
-    let mut cfg = read_config_file();
+    let mut cfg = load_config()?;
     let mut needs_save = false;
     for conn in cfg.connections.iter_mut() {
         if conn.id.is_none() {

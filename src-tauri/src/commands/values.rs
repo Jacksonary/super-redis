@@ -1,5 +1,5 @@
 use crate::commands::util::{parse_scan, session, val_to_i64, val_to_string};
-use crate::types::{HashField, HashFieldsResult, ListItemsResult, SetMembersResult, StringValue};
+use crate::types::{HashField, HashFieldsResult, ListItemsResult, SetMembersResult, StringValue, ZSetItem, ZSetItemsResult};
 use redis::Value;
 
 // ─── String ──────────────────────────────────────────────────────────────────
@@ -9,12 +9,17 @@ pub async fn get_value(conn_id: String, db: i64, key: String) -> Result<StringVa
     let s = session(&conn_id).await?;
     let v = s.query(db, vec!["GET".to_string(), key]).await?;
     match v {
-        Value::Nil => Ok(StringValue { value: "(nil)".to_string(), is_binary: false }),
+        Value::Nil => Ok(StringValue { value: "(nil)".to_string(), is_binary: false, hex: None }),
         Value::BulkString(b) => {
             let is_binary = std::str::from_utf8(&b).is_err();
-            Ok(StringValue { value: String::from_utf8_lossy(&b).into_owned(), is_binary })
+            let hex = if is_binary {
+                Some(b.iter().map(|x| format!("{x:02x}")).collect::<String>())
+            } else {
+                None
+            };
+            Ok(StringValue { value: String::from_utf8_lossy(&b).into_owned(), is_binary, hex })
         }
-        other => Ok(StringValue { value: val_to_string(&other), is_binary: false }),
+        other => Ok(StringValue { value: val_to_string(&other), is_binary: false, hex: None }),
     }
 }
 
@@ -210,6 +215,57 @@ pub async fn add_set_item(conn_id: String, db: i64, key: String, members: Vec<St
 pub async fn delete_set_item(conn_id: String, db: i64, key: String, members: Vec<String>) -> Result<serde_json::Value, String> {
     let s = session(&conn_id).await?;
     let mut args = vec!["SREM".to_string(), key];
+    for m in members {
+        args.push(m);
+    }
+    let v = s.query(db, args).await?;
+    Ok(serde_json::json!({ "removed": val_to_i64(&v) }))
+}
+
+// ─── ZSet ────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_zset_items(
+    conn_id: String,
+    db: i64,
+    key: String,
+    cursor: Option<String>,
+    count: Option<i64>,
+) -> Result<ZSetItemsResult, String> {
+    let s = session(&conn_id).await?;
+    let cursor = cursor.unwrap_or_else(|| "0".into());
+    let count = count.unwrap_or(500).clamp(1, 1000);
+    let v = s
+        .query(
+            db,
+            vec!["ZSCAN".to_string(), key, cursor, "COUNT".to_string(), count.to_string()],
+        )
+        .await?;
+    let (next, flat) = parse_scan(&v);
+    let items: Vec<ZSetItem> = flat
+        .chunks(2)
+        .map(|c| ZSetItem {
+            member: c[0].clone(),
+            score: c.get(1).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0),
+        })
+        .collect();
+    let total = items.len() as i64;
+    Ok(ZSetItemsResult { items, cursor: next, total })
+}
+
+#[tauri::command]
+pub async fn add_zset_item(conn_id: String, db: i64, key: String, member: String, score: f64) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    let v = s
+        .query(db, vec!["ZADD".to_string(), key, score.to_string(), member])
+        .await?;
+    Ok(serde_json::json!({ "added": val_to_i64(&v) }))
+}
+
+#[tauri::command]
+pub async fn delete_zset_item(conn_id: String, db: i64, key: String, members: Vec<String>) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    let mut args = vec!["ZREM".to_string(), key];
     for m in members {
         args.push(m);
     }

@@ -294,6 +294,8 @@ pub struct ListKeysResult {
 pub struct StringValue {
     pub value: String,
     pub is_binary: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hex: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -331,6 +333,7 @@ pub struct ZSetItem {
 #[derive(Debug, Serialize)]
 pub struct ZSetItemsResult {
     pub items: Vec<ZSetItem>,
+    pub cursor: u64,
     pub total: i64,
 }
 

@@ -1,18 +1,26 @@
-import { useRef, useState } from "react";
-import { Button, Typography } from "antd";
-import { ConsoleSqlOutlined } from "@ant-design/icons";
+import { useEffect, useRef, useState } from "react";
+import { Button, Select, Typography } from "antd";
+import { ConsoleSqlOutlined, DashboardOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
+import { api } from "../api";
 import { KeyBrowser } from "./KeyBrowser";
 import { ValuePanel } from "./ValuePanel";
 import { TerminalTab } from "./TerminalTab";
+import { MonitorTab } from "./MonitorTab";
 
 const { Text } = Typography;
 
-export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: boolean }) {
+export function Workspace({ target, isDark, onDbChange }: { target: SelectedTarget; isDark: boolean; onDbChange: (db: number) => void }) {
   const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [splitRatio, setSplitRatio] = useState(0.42);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [monitorOpen, setMonitorOpen] = useState(false);
+  const [dbCount, setDbCount] = useState(0);
+
+  useEffect(() => {
+    api.getDbCount(target.connectionId).then(setDbCount).catch(() => {});
+  }, [target.connectionId]);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -41,6 +49,16 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
       onMouseMove={onMouseMove}
       onMouseUp={stopDrag}
     >
+      <div style={{ height: 32, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderBottom: `1px solid ${borderColor}`, flexShrink: 0 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>DB:</Text>
+        <Select
+          value={target.db}
+          onChange={onDbChange}
+          size="small"
+          style={{ width: 110 }}
+          options={Array.from({ length: Math.max(dbCount, 16) }, (_, i) => ({ value: i, label: `DB ${i}` }))}
+        />
+      </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ width: `${splitRatio * 100}%`, minWidth: 260, borderRight: `1px solid ${borderColor}` }}>
           <KeyBrowser target={target} onSelectKey={setSelectedKey} />
@@ -60,7 +78,7 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${borderColor}`, height: terminalOpen ? "38vh" : 40, transition: "height .2s" }}>
+      <div style={{ borderTop: `1px solid ${borderColor}`, height: terminalOpen || monitorOpen ? "40vh" : 40, transition: "height .2s" }}>
         <div
           style={{ height: 40, display: "flex", alignItems: "center", gap: 8, padding: "0 12px" }}
         >
@@ -68,12 +86,27 @@ export function Workspace({ target, isDark }: { target: SelectedTarget; isDark: 
             size="small"
             type={terminalOpen ? "primary" : "default"}
             icon={<ConsoleSqlOutlined />}
-            onClick={() => setTerminalOpen((v) => !v)}
+            onClick={() => {
+              setTerminalOpen((v) => !v);
+              setMonitorOpen(false);
+            }}
           >
-            {isDark ? "Terminal" : "Terminal"}
+            Terminal
+          </Button>
+          <Button
+            size="small"
+            type={monitorOpen ? "primary" : "default"}
+            icon={<DashboardOutlined />}
+            onClick={() => {
+              setMonitorOpen((v) => !v);
+              setTerminalOpen(false);
+            }}
+          >
+            Monitor
           </Button>
         </div>
         {terminalOpen && <TerminalTab target={target} />}
+        {monitorOpen && <MonitorTab target={target} />}
       </div>
     </div>
   );

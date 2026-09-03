@@ -140,12 +140,12 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 8 }}>
-      <Space style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
         <Input.Search
           placeholder="Search key (pattern)"
           allowClear
           prefix={<SearchOutlined />}
-          style={{ width: 200 }}
+          style={{ width: 190 }}
           onChange={(e) => e.target.value === "" && setPattern("")}
           onSearch={(v) => {
             setPattern(v);
@@ -154,19 +154,6 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
           }}
         />
         <Segmented value={view} onChange={(v) => setView(v as "flat" | "tree")} options={["flat", "tree"]} />
-        {view === "tree" && (
-          <>
-            <Tooltip title="Separator">
-              <Input
-                value={delimiter}
-                onChange={(e) => setDelimiter(e.target.value || ":")}
-                style={{ width: 60 }}
-                placeholder=":"
-              />
-            </Tooltip>
-            <Button size="small" loading={loadingAll} onClick={loadAll}>Load all</Button>
-          </>
-        )}
         <Tooltip title="Refresh">
           <Button icon={<ReloadOutlined />} onClick={() => load(pattern, 0, true)} />
         </Tooltip>
@@ -178,7 +165,20 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             <Button danger size="small">Delete</Button>
           </Popconfirm>
         )}
-      </Space>
+      </div>
+
+      {view === "tree" && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 12, opacity: 0.7 }}>Separator:</span>
+          <Input
+            value={delimiter}
+            onChange={(e) => setDelimiter(e.target.value || ":")}
+            style={{ width: 64 }}
+            placeholder=":"
+          />
+          <Button size="small" loading={loadingAll} onClick={loadAll}>Load all keys</Button>
+        </div>
+      )}
 
       {view === "flat" ? (
         <div style={{ flex: 1, overflow: "auto" }}>

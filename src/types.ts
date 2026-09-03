@@ -108,6 +108,7 @@ export interface ListKeysResult {
 export interface StringValue {
   value: string;
   is_binary: boolean;
+  hex?: string | null;
 }
 
 export interface HashField {
@@ -135,6 +136,20 @@ export interface SetMembersResult {
 export interface ZSetItem {
   member: string;
   score: number;
+}
+
+export interface ZSetItemsResult {
+  items: ZSetItem[];
+  cursor: number;
+  total: number;
+}
+
+export interface SlowlogEntry {
+  id: string;
+  timestamp: number;
+  duration_us: number;
+  command: string;
+  client: string;
 }
 
 export interface StreamEntry {

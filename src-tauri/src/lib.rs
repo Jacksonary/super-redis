@@ -61,6 +61,20 @@ pub fn run() {
             commands::keys::get_search_history,
             // Values
             commands::values::get_value,
+            commands::values::get_zset_items,
+            commands::values::add_zset_item,
+            commands::values::delete_zset_item,
+            // Streams
+            commands::streams::get_stream_info,
+            commands::streams::read_stream_entries,
+            commands::streams::add_stream_entry,
+            commands::streams::delete_stream_entry,
+            commands::streams::create_consumer_group,
+            // Monitor / info
+            commands::monitor::get_db_count,
+            commands::monitor::get_server_info,
+            commands::monitor::get_slowlog,
+            commands::monitor::clear_slowlog,
             commands::values::set_value,
             commands::values::set_value_with_ttl,
             commands::values::get_key_type,

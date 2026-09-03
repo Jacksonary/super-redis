@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Typography, message } from "antd";
+import { Button, Input, Typography, Segmented, message } from "antd";
 
 const { Text } = Typography;
 import type { SelectedTarget } from "../types";
@@ -16,8 +16,10 @@ interface Props {
 export function StringViewer({ target, currentKey }: Props) {
   const { connectionId: connId, db } = target;
   const [value, setValue] = useState("");
+  const [hex, setHex] = useState("");
   const [binary, setBinary] = useState(false);
   const [json, setJson] = useState(false);
+  const [view, setView] = useState<"text" | "hex">("text");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,6 +29,8 @@ export function StringViewer({ target, currentKey }: Props) {
       .then((r) => {
         setValue(r.value);
         setBinary(r.is_binary);
+        setHex(r.hex ?? "");
+        setView(r.is_binary ? "hex" : "text");
         // Only attempt the (synchronous) JSON.parse on reasonably short strings so
         // a multi-MB value doesn't block the main thread.
         setJson(!r.is_binary && r.value.length < 200_000 && isValidJson(r.value));
@@ -44,9 +48,14 @@ export function StringViewer({ target, currentKey }: Props) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Button size="small" onClick={save} disabled={loading} type="primary">Save</Button>
+        <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
         {binary ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>Binary value</Text>
+          <Segmented
+            size="small"
+            value={view}
+            onChange={(v) => setView(v as "text" | "hex")}
+            options={["hex", "text"]}
+          />
         ) : (
           json && value && (
             <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
@@ -55,8 +64,8 @@ export function StringViewer({ target, currentKey }: Props) {
       </div>
       <TextArea
         style={{ flex: 1, resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        value={view === "hex" && hex ? hex : value}
+        onChange={(e) => (view === "hex" && binary ? setHex(e.target.value) : setValue(e.target.value))}
         disabled={loading}
       />
     </div>
