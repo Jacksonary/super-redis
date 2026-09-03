@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Descriptions, Spin, Typography } from "antd";
 import type { KeyInfo, SelectedTarget } from "../types";
 import { api } from "../api";
-import { formatBytes, ttlText } from "../utils";
+import { formatBytes } from "../utils";
 import { StringViewer } from "./StringViewer";
 import { HashViewer } from "./HashViewer";
 import { ListViewer } from "./ListViewer";
@@ -39,7 +39,7 @@ export function ValuePanel({ target, currentKey }: Props) {
       <Descriptions size="small" column={4} style={{ fontSize: 12 }}>
         <Descriptions.Item label="Key">{currentKey}</Descriptions.Item>
         <Descriptions.Item label="Type">{type || "none"}</Descriptions.Item>
-        <Descriptions.Item label="TTL">{meta ? ttlText(meta.ttl) : "-"}</Descriptions.Item>
+        <Descriptions.Item label="TTL">{meta ? meta.ttl : "-"}</Descriptions.Item>
         <Descriptions.Item label="Size">{meta ? formatBytes(meta.size) : "-"}</Descriptions.Item>
       </Descriptions>
 

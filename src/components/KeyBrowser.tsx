@@ -3,7 +3,7 @@ import { Table, Input, Button, Space, Tooltip, Modal, Form, Input as InputField,
 import { ReloadOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import type { KeyInfo, SelectedTarget } from "../types";
 import { api } from "../api";
-import { formatBytes, ttlText } from "../utils";
+import { formatBytes } from "../utils";
 
 interface Props {
   target: SelectedTarget;
@@ -123,7 +123,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
       ),
     },
     { title: "Type", dataIndex: "type", width: 90, render: (t: string) => <span style={{ fontSize: 12 }}>{t}</span> },
-    { title: "TTL", dataIndex: "ttl", width: 80, render: (t: number) => <span style={{ fontSize: 12 }}>{ttlText(t)}</span> },
+    { title: "TTL", dataIndex: "ttl", width: 80, render: (t: number) => <span style={{ fontSize: 12 }}>{t}</span> },
     { title: "Size", dataIndex: "size", width: 90, render: (s: number | null) => <span style={{ fontSize: 12 }}>{formatBytes(s)}</span> },
   ];
 

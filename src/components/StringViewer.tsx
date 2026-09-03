@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Space, Typography, message } from "antd";
+import { Button, Input, Typography, message } from "antd";
 
 const { Text } = Typography;
 import type { SelectedTarget } from "../types";
@@ -43,14 +43,13 @@ export function StringViewer({ target, currentKey }: Props) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Button size="small" onClick={save} disabled={loading} type="primary">Save</Button>
-        <Space size={8}>
-          {json && value && (
+        {binary ? (
+          <Text type="secondary" style={{ fontSize: 12 }}>Binary value</Text>
+        ) : (
+          json && value && (
             <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
-          )}
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Format: {binary ? "binary" : json ? "JSON" : "plain"}
-          </Text>
-        </Space>
+          )
+        )}
       </div>
       <TextArea
         style={{ flex: 1, resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
