@@ -141,11 +141,6 @@ export function Sidebar(props: Props) {
         <Text strong style={{ fontSize: 14 }}>
           {props.locale === "zh-CN" ? "Connections" : "Connections"}
         </Text>
-        <Space>
-          <Tooltip title={props.locale === "zh-CN" ? "New Connection" : "New connection"}>
-            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setFormOpen(true); }} />
-          </Tooltip>
-        </Space>
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "0 6px" }}>
@@ -214,6 +209,19 @@ export function Sidebar(props: Props) {
             </div>
           )}
         />
+        <div style={{ padding: "8px 12px" }}>
+          <Button
+            type="dashed"
+            block
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            Add connection
+          </Button>
+        </div>
       </div>
 
       <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
