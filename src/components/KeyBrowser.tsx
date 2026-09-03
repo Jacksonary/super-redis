@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { Table, Input, Button, Space, Tooltip, Modal, Form, Input as InputField, Select, Popconfirm, message } from "antd";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Table, Tree, Input, Button, Space, Tooltip, Modal, Form, Input as InputField, Select, Segmented, Popconfirm, message } from "antd";
 import { ReloadOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
+import { groupKeys, type KeyTreeNode } from "../utils";
 
 interface Props {
   target: SelectedTarget;
@@ -21,10 +22,17 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
+  const [view, setView] = useState<"flat" | "tree">("flat");
+  const [delimiter, setDelimiter] = useState(":");
+  const [loadingAll, setLoadingAll] = useState(false);
+
   const [newOpen, setNewOpen] = useState(false);
   const [renameKey, setRenameKey] = useState<string | null>(null);
   const [ttlKey, setTtlKey] = useState<string | null>(null);
   const [form] = Form.useForm();
+
+  const treeData = useMemo<KeyTreeNode[]>(() => groupKeys(keys, delimiter), [keys, delimiter]);
+  const keySet = useMemo(() => new Set(keys), [keys]);
 
   const load = useCallback(
     async (p: string, c: number, reset: boolean) => {
@@ -55,6 +63,26 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
     refreshCount();
     load("", 0, true);
   }, [connId, db, load, refreshCount]);
+
+  // "Load all keys" for the tree view: page through SCAN until the cursor ends.
+  const loadAll = async () => {
+    setLoadingAll(true);
+    let c = 0;
+    let acc: string[] = [];
+    try {
+      for (;;) {
+        const res = await api.listKeys(connId, db, { pattern: pattern || undefined, cursor: c ? String(c) : undefined, count: 500 });
+        acc = acc.concat(res.keys);
+        c = res.cursor;
+        if (!c || acc.length > 20000) break;
+      }
+      setKeys(acc);
+    } catch (e) {
+      message.error(String(e));
+    } finally {
+      setLoadingAll(false);
+    }
+  };
 
   const doDelete = async (keysToDelete: string[]) => {
     if (!keysToDelete.length) return;
@@ -117,7 +145,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
           placeholder="Search key (pattern)"
           allowClear
           prefix={<SearchOutlined />}
-          style={{ width: 240 }}
+          style={{ width: 200 }}
           onChange={(e) => e.target.value === "" && setPattern("")}
           onSearch={(v) => {
             setPattern(v);
@@ -125,6 +153,20 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             refreshCount();
           }}
         />
+        <Segmented value={view} onChange={(v) => setView(v as "flat" | "tree")} options={["flat", "tree"]} />
+        {view === "tree" && (
+          <>
+            <Tooltip title="Separator">
+              <Input
+                value={delimiter}
+                onChange={(e) => setDelimiter(e.target.value || ":")}
+                style={{ width: 60 }}
+                placeholder=":"
+              />
+            </Tooltip>
+            <Button size="small" loading={loadingAll} onClick={loadAll}>Load all</Button>
+          </>
+        )}
         <Tooltip title="Refresh">
           <Button icon={<ReloadOutlined />} onClick={() => load(pattern, 0, true)} />
         </Tooltip>
@@ -138,35 +180,52 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         )}
       </Space>
 
-      <div style={{ flex: 1, overflow: "auto" }}>
-        <Table<string>
-          size="small"
-          rowKey={(v, i) => `${i}`}
-          columns={[
-            {
-              title: "Key",
-              render: (_, v) => <span style={{ fontSize: 12, fontFamily: "SF Mono, Menlo, monospace" }}>{v}</span>,
-            },
-          ]}
-          dataSource={keys}
-          loading={loading}
-          pagination={false}
-          rowSelection={{ selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
-          onRow={(record) => ({
-            onClick: () => {
-              setActiveKey(record);
-              onSelectKey(record);
-            },
-          })}
-          rowClassName={(r) => (r === activeKey ? "ant-table-row-selected" : "")}
-          scroll={{ y: "calc(100vh - 240px)" }}
-        />
-      </div>
+      {view === "flat" ? (
+        <div style={{ flex: 1, overflow: "auto" }}>
+          <Table<string>
+            size="small"
+            rowKey={(v, i) => `${i}`}
+            columns={[
+              {
+                title: "Key",
+                render: (_, v) => <span style={{ fontSize: 12, fontFamily: "SF Mono, Menlo, monospace" }}>{v}</span>,
+              },
+            ]}
+            dataSource={keys}
+            loading={loading}
+            pagination={false}
+            rowSelection={{ selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
+            onRow={(record) => ({
+              onClick: () => {
+                setActiveKey(record);
+                onSelectKey(record);
+              },
+            })}
+            rowClassName={(r) => (r === activeKey ? "ant-table-row-selected" : "")}
+            scroll={{ y: "calc(100vh - 240px)" }}
+          />
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflow: "auto", padding: 4 }}>
+          <Tree
+            treeData={treeData}
+            showLine
+            showIcon={false}
+            height={Math.max(320, window.innerHeight - 230)}
+            selectedKeys={activeKey ? [activeKey] : []}
+            onSelect={(_keys, info) => {
+              const key = (info.node as unknown as { key: string }).key;
+              if (key && keySet.has(key)) {
+                setActiveKey(key);
+                onSelectKey(key);
+              }
+            }}
+          />
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8 }}>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>
-          {total >= 0 ? `${total} keys` : "..."}
-        </span>
+        <span style={{ fontSize: 12, opacity: 0.6 }}>{total >= 0 ? `${total} keys` : "..."}</span>
         {cursor !== 0 && (
           <Button size="small" loading={loading} onClick={() => load(pattern, cursor, false)}>
             Load more

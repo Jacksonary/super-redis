@@ -44,3 +44,42 @@ export function prettyJson(s: string): string {
 export function truncate(s: string, n = 80): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
 }
+
+/** A node in the folder/tree key view. `key` is the full path, `title` the last segment. */
+export interface KeyTreeNode {
+  key: string;
+  title: string;
+  isLeaf?: boolean;
+  children?: KeyTreeNode[];
+}
+
+/**
+ * Group a flat list of Redis keys into a folder tree by a delimiter (default ":").
+ * Each segment becomes a folder node; the full key path becomes a leaf.
+ */
+export function groupKeys(keys: string[], delimiter: string): KeyTreeNode[] {
+  const root: Record<string, Record<string, unknown> & { children: Record<string, unknown> }> = {};
+  for (const k of keys) {
+    const segs = k.split(delimiter);
+    let cur = root as Record<string, Record<string, unknown> & { children: Record<string, unknown> }>;
+    let path = "";
+    for (let i = 0; i < segs.length; i++) {
+      path = i === 0 ? segs[0] : path + delimiter + segs[i];
+      if (!cur[path]) cur[path] = { children: {} };
+      if (i < segs.length - 1) cur = cur[path].children as typeof cur;
+    }
+  }
+  const convert = (m: Record<string, Record<string, unknown> & { children: Record<string, unknown> }>): KeyTreeNode[] =>
+    Object.keys(m)
+      .map((p) => {
+        const children = convert(m[p].children as typeof m);
+        return {
+          key: p,
+          title: p.split(delimiter).pop() || p,
+          children: children.length ? children : undefined,
+          isLeaf: children.length === 0,
+        };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  return convert(root);
+}
