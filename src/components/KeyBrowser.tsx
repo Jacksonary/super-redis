@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Table, Tree, Input, Button, Space, Tooltip, Modal, Form, Input as InputField, Select, Segmented, Popconfirm, message } from "antd";
-import { ReloadOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import { ReloadOutlined, PlusOutlined, SearchOutlined, FolderOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 import { groupKeys, type KeyTreeNode } from "../utils";
@@ -232,8 +232,13 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
           <Tree
             treeData={treeData}
             showLine
-            showIcon={false}
             height={Math.max(320, window.innerHeight - 230)}
+            titleRender={(node) => (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                {!node.isLeaf && <FolderOutlined style={{ color: "#faad14" }} />}
+                <span>{node.title}</span>
+              </span>
+            )}
             selectedKeys={activeKey ? [activeKey] : activeFolder ? [activeFolder] : []}
             onSelect={(_keys, info) => {
               const key = (info.node as unknown as { key: string }).key;

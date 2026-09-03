@@ -23,15 +23,14 @@ pub async fn create_key(
         "zset" => vec!["ZADD".to_string(), key.clone(), score.to_string(), value],
         other => return Err(format!("Unsupported key type: {other}")),
     };
-    let mut cmd = args;
+    let _ = s.query(db, args).await?;
     if let Some(secs) = ttl {
         if secs > 0 {
-            cmd.push("EXPIRE".to_string());
-            cmd.push(key);
-            cmd.push(secs.to_string());
+            let _ = s
+                .query(db, vec!["EXPIRE".to_string(), key, secs.to_string()])
+                .await?;
         }
     }
-    let _ = s.query(db, cmd).await?;
     Ok(serde_json::json!({ "ok": true }))
 }
 

@@ -58,7 +58,7 @@ fn parse_info(v: &Value) -> serde_json::Value {
             continue;
         }
         if let Some(sec) = line.strip_prefix('#') {
-            cur = sec.trim().to_string();
+            cur = sec.trim().to_lowercase();
             if !sections.contains_key(&cur) {
                 sections.insert(cur.clone(), serde_json::json!({}));
             }

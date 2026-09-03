@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, message } from "antd";
 import {
   PlusOutlined,
-  SettingOutlined,
   ApiOutlined,
   EditOutlined,
   CopyOutlined,
@@ -11,6 +10,8 @@ import {
   LinkOutlined,
   DisconnectOutlined,
   MenuFoldOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from "@ant-design/icons";
 import type { ConnectionSummary, SelectedTarget } from "../types";
 import { api } from "../api";
@@ -112,6 +113,8 @@ export function Sidebar(props: Props) {
       onClick: async () => {
         await api.disconnectConnection(conn.id);
         setStatus((p) => ({ ...p, [conn.id]: "disconnected" }));
+        // Clear the right-hand workspace back to the empty/dashboard state.
+        if (selected?.connectionId === conn.id) onSelect(null);
         message.success("disconnected");
       },
     },
@@ -141,12 +144,6 @@ export function Sidebar(props: Props) {
         <Space>
           <Tooltip title={props.locale === "zh-CN" ? "New Connection" : "New connection"}>
             <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setFormOpen(true); }} />
-          </Tooltip>
-          <Tooltip title={props.locale === "zh-CN" ? "Settings" : "Settings"}>
-            <Button size="small" icon={<SettingOutlined />} onClick={props.onOpenSettings} />
-          </Tooltip>
-          <Tooltip title="Collapse">
-            <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
           </Tooltip>
         </Space>
       </div>
@@ -219,8 +216,14 @@ export function Sidebar(props: Props) {
         />
       </div>
 
-      <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}` }}>
-        <Text type="secondary" style={{ fontSize: 11 }}>Super Redis</Text>
+      <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
+        <Tooltip title={props.isDark ? "Light theme" : "Dark theme"}>
+          <Button size="small" icon={props.isDark ? <SunOutlined /> : <MoonOutlined />} onClick={props.onThemeToggle} />
+        </Tooltip>
+        <Tooltip title="Collapse sidebar">
+          <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
+        </Tooltip>
+        <Text type="secondary" style={{ fontSize: 11, flex: 1, textAlign: "right" }}>Super Redis</Text>
       </div>
 
       <ConnectionForm

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Space, Typography, Segmented, message } from "antd";
+import { Button, Input, Tooltip, Typography, Segmented, message } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -48,9 +48,15 @@ export function StringViewer({ target, currentKey }: Props) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Space size={8}>
-          <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+        {binary ? (
+          <Segmented size="small" value={view} onChange={(v) => setView(v as "text" | "hex")} options={["hex", "text"]} />
+        ) : (
+          json && value && (
+            <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
+          )
+        )}
+        <Tooltip title="Copy value">
           <Button
             size="small"
             icon={<CopyOutlined />}
@@ -58,22 +64,8 @@ export function StringViewer({ target, currentKey }: Props) {
               await navigator.clipboard.writeText(view === "hex" && hex ? hex : value);
               message.success("copied");
             }}
-          >
-            Copy
-          </Button>
-        </Space>
-        {binary ? (
-          <Segmented
-            size="small"
-            value={view}
-            onChange={(v) => setView(v as "text" | "hex")}
-            options={["hex", "text"]}
           />
-        ) : (
-          json && value && (
-            <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
-          )
-        )}
+        </Tooltip>
       </div>
       <TextArea
         style={{ flex: 1, resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
@@ -81,6 +73,9 @@ export function StringViewer({ target, currentKey }: Props) {
         onChange={(e) => (view === "hex" && binary ? setHex(e.target.value) : setValue(e.target.value))}
         disabled={loading}
       />
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
+      </div>
     </div>
   );
 }

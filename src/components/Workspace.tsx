@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Select, Typography } from "antd";
-import { ConsoleSqlOutlined, DashboardOutlined } from "@ant-design/icons";
+import { ConsoleSqlOutlined, DashboardOutlined, HomeOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 import { KeyBrowser } from "./KeyBrowser";
@@ -59,6 +59,18 @@ export function Workspace({ target, isDark, onDbChange }: { target: SelectedTarg
           style={{ width: 110 }}
           options={Array.from({ length: Math.max(dbCount, 16) }, (_, i) => ({ value: i, label: `DB ${i}` }))}
         />
+        <div style={{ flex: 1 }} />
+        {selectedKey && (
+          <Button
+            size="small"
+            icon={<HomeOutlined />}
+            onClick={() => {
+              setSelectedKey("");
+            }}
+          >
+            Overview
+          </Button>
+        )}
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ width: `${splitRatio * 100}%`, minWidth: 260, borderRight: `1px solid ${borderColor}` }}>
