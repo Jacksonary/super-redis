@@ -1,0 +1,97 @@
+use redis::Value;
+use std::sync::Arc;
+
+use crate::redisclient::{self, Session};
+use crate::types::KeyInfo;
+
+/// Flatten a `redis::Value` into a display string.
+///
+/// `redis::Value` (1.x) implements neither `Display` nor `ToString`, so every
+/// variant used for display must be matched explicitly; anything else falls back
+/// to the debug form.
+pub fn val_to_string(v: &Value) -> String {
+    match v {
+        Value::Nil => String::new(),
+        Value::BulkString(b) => String::from_utf8_lossy(b).into_owned(),
+        Value::Int(i) => i.to_string(),
+        Value::Double(d) => d.to_string(),
+        Value::SimpleString(s) => s.clone(),
+        Value::Okay => "OK".to_string(),
+        Value::Array(l) => l.iter().map(val_to_string).collect::<Vec<_>>().join(", "),
+        Value::Set(l) => l.iter().map(val_to_string).collect::<Vec<_>>().join(", "),
+        Value::Map(m) => m
+            .iter()
+            .map(|(a, b)| format!("{}: {}", val_to_string(a), val_to_string(b)))
+            .collect::<Vec<_>>()
+            .join(", "),
+        Value::Boolean(b) => b.to_string(),
+        Value::VerbatimString { text, .. } => text.clone(),
+        Value::Push { data, .. } => data.iter().map(val_to_string).collect::<Vec<_>>().join(", "),
+        Value::Attribute { data, .. } => val_to_string(data),
+        unk => format!("{unk:?}"),
+    }
+}
+
+/// Interpret a `redis::Value` as a 64-bit integer, defaulting to 0.
+pub fn val_to_i64(v: &Value) -> i64 {
+    match v {
+        Value::Int(i) => *i,
+        Value::BulkString(b) => String::from_utf8_lossy(b).parse().unwrap_or(0),
+        Value::SimpleString(s) => s.parse().unwrap_or(0),
+        Value::Double(d) => *d as i64,
+        _ => 0,
+    }
+}
+
+/// Parse the `[cursor, keys[]]` array returned by SCAN / HSCAN / SSCAN / ZSCAN.
+pub fn parse_scan(v: &Value) -> (u64, Vec<String>) {
+    match v {
+        Value::Array(arr) if arr.len() >= 2 => {
+            let cursor = val_to_string(&arr[0]).parse::<u64>().unwrap_or(0);
+            let keys = match &arr[1] {
+                Value::Array(ks) => ks.iter().map(val_to_string).collect(),
+                _ => Vec::new(),
+            };
+            (cursor, keys)
+        }
+        _ => (0, Vec::new()),
+    }
+}
+
+/// Get the live session for a connection id.
+pub async fn session(conn_id: &str) -> Result<Arc<Session>, String> {
+    redisclient::get_session(conn_id).await
+}
+
+/// Fetch TTL (seconds) for a key. Returns -1 (no TTL), -2 (key missing), or the
+/// remaining seconds.
+pub async fn ttl(conn_id: &str, db: i64, key: &str) -> Result<i64, String> {
+    let s = session(conn_id).await?;
+    let v = s.query(db, vec!["TTL".to_string(), key.to_string()]).await?;
+    Ok(val_to_i64(&v))
+}
+
+/// Build a `KeyInfo` (type + TTL + size) for a key.
+pub async fn key_info(conn_id: &str, db: i64, key: &str) -> Result<KeyInfo, String> {
+    let s = session(conn_id).await?;
+    let typ = s.query(db, vec!["TYPE".to_string(), key.to_string()]).await?;
+    let size = s
+        .query(db, vec!["MEMORY USAGE".to_string(), key.to_string()])
+        .await
+        .ok()
+        .map(|v| val_to_i64(&v))
+        .filter(|v| *v >= 0);
+    let encoding = s
+        .query(db, vec!["OBJECT ENCODING".to_string(), key.to_string()])
+        .await
+        .ok()
+        .map(|v| val_to_string(&v))
+        .filter(|v| !v.is_empty());
+    Ok(KeyInfo {
+        key: key.to_string(),
+        value_type: val_to_string(&typ),
+        ttl: ttl(conn_id, db, key).await?,
+        size,
+        encoding,
+    })
+}
