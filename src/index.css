@@ -1,8 +1,10 @@
 html,
-body {
+body,
+#root {
   margin: 0;
   padding: 0;
   height: 100%;
+  overflow: hidden; /* the app is a fixed layout — only inner containers scroll */
 }
 
 * {
