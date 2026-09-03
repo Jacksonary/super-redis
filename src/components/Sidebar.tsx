@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Dropdown, Button, Tooltip, List, Typography, Modal, Space } from "antd";
+import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, message } from "antd";
 import {
   PlusOutlined,
   SettingOutlined,
@@ -8,6 +8,9 @@ import {
   CopyOutlined,
   ReadOutlined,
   DeleteOutlined,
+  LinkOutlined,
+  DisconnectOutlined,
+  MenuFoldOutlined,
 } from "@ant-design/icons";
 import type { ConnectionSummary, SelectedTarget } from "../types";
 import { api } from "../api";
@@ -25,6 +28,7 @@ interface Props {
   onLocaleChange: (l: string) => void;
   onConnectionsChange: () => void;
   onOpenSettings: () => void;
+  onCollapse: () => void;
 }
 
 export function Sidebar(props: Props) {
@@ -33,6 +37,7 @@ export function Sidebar(props: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ConnectionSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConnectionSummary | null>(null);
+  const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
 
   const groups = useMemo(() => {
     const map = new Map<string | null, ConnectionSummary[]>();
@@ -44,8 +49,18 @@ export function Sidebar(props: Props) {
     return [...map.entries()];
   }, [connections]);
 
+  const refreshStatus = async (connId: string) => {
+    try {
+      const s = await api.getConnectionStatus(connId);
+      setStatus((p) => ({ ...p, [connId]: s.healthy ? "ok" : "error" }));
+    } catch {
+      setStatus((p) => ({ ...p, [connId]: "error" }));
+    }
+  };
+
   const onSelectConnection = (conn: ConnectionSummary, db: number) => {
     onSelect({ connectionId: conn.id, db });
+    refreshStatus(conn.id);
   };
 
   const handleDelete = async () => {
@@ -76,10 +91,29 @@ export function Sidebar(props: Props) {
       onClick: () => api.cloneConnection(conn.id).then(() => onConnectionsChange()),
     },
     {
-      key: "test",
-      label: props.locale === "zh-CN" ? "Test Connection" : "Test Connection",
-      icon: <ApiOutlined />,
-      onClick: () => api.testConnection(conn.id),
+      key: "connect",
+      label: "Connect",
+      icon: <LinkOutlined />,
+      onClick: async () => {
+        try {
+          await api.testConnection(conn.id);
+          setStatus((p) => ({ ...p, [conn.id]: "ok" }));
+          message.success("connected");
+        } catch (e) {
+          setStatus((p) => ({ ...p, [conn.id]: "error" }));
+          message.error(String(e));
+        }
+      },
+    },
+    {
+      key: "disconnect",
+      label: "Disconnect",
+      icon: <DisconnectOutlined />,
+      onClick: async () => {
+        await api.disconnectConnection(conn.id);
+        setStatus((p) => ({ ...p, [conn.id]: "disconnected" }));
+        message.success("disconnected");
+      },
     },
     { type: "divider" as const },
     {
@@ -110,6 +144,9 @@ export function Sidebar(props: Props) {
           </Tooltip>
           <Tooltip title={props.locale === "zh-CN" ? "Settings" : "Settings"}>
             <Button size="small" icon={<SettingOutlined />} onClick={props.onOpenSettings} />
+          </Tooltip>
+          <Tooltip title="Collapse">
+            <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
           </Tooltip>
         </Space>
       </div>
@@ -153,7 +190,14 @@ export function Sidebar(props: Props) {
                             width: 9,
                             height: 9,
                             borderRadius: "50%",
-                            background: conn.color ?? "#4C9BFA",
+                            background:
+                              status[conn.id] === "ok"
+                                ? "#52c41a"
+                                : status[conn.id] === "error"
+                                ? "#ff4d4f"
+                                : status[conn.id] === "disconnected"
+                                ? "#8c8c8c"
+                                : conn.color ?? "#4C9BFA",
                             marginRight: 8,
                             flexShrink: 0,
                           }}

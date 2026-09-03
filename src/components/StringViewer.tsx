@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Typography, Segmented, message } from "antd";
+import { Button, Input, Space, Typography, Segmented, message } from "antd";
+import { CopyOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
 import type { SelectedTarget } from "../types";
@@ -48,7 +49,19 @@ export function StringViewer({ target, currentKey }: Props) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
+        <Space size={8}>
+          <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={async () => {
+              await navigator.clipboard.writeText(view === "hex" && hex ? hex : value);
+              message.success("copied");
+            }}
+          >
+            Copy
+          </Button>
+        </Space>
         {binary ? (
           <Segmented
             size="small"

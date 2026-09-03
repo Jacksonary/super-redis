@@ -657,3 +657,8 @@ pub async fn test_session(conn_id: &str) -> Result<(), String> {
         .await?;
     Ok(())
 }
+
+/// Drop a single cached session (used by "disconnect"). Returns true if one was removed.
+pub fn drop_session(conn_id: &str) -> bool {
+    session_cache().lock().unwrap().remove(conn_id).is_some()
+}

@@ -1,17 +1,37 @@
 use crate::commands::util::{session, val_to_i64};
 
 #[tauri::command]
-pub async fn create_key(conn_id: String, db: i64, key: String, value_type: String) -> Result<serde_json::Value, String> {
+pub async fn create_key(
+    conn_id: String,
+    db: i64,
+    key: String,
+    value_type: String,
+    value: Option<String>,
+    field: Option<String>,
+    score: Option<f64>,
+    ttl: Option<i64>,
+) -> Result<serde_json::Value, String> {
     let s = session(&conn_id).await?;
+    let value = value.unwrap_or_default();
+    let field = field.unwrap_or_default();
+    let score = score.unwrap_or(0.0);
     let args: Vec<String> = match value_type.as_str() {
-        "string" => vec!["SET".to_string(), key, "".to_string()],
-        "hash" => vec!["HSET".to_string(), key, "".to_string(), "".to_string()],
-        "list" => vec!["RPUSH".to_string(), key, "".to_string()],
-        "set" => vec!["SADD".to_string(), key, "".to_string()],
-        "zset" => vec!["ZADD".to_string(), key, "0".to_string(), "".to_string()],
+        "string" => vec!["SET".to_string(), key.clone(), value],
+        "hash" => vec!["HSET".to_string(), key.clone(), field, value],
+        "list" => vec!["RPUSH".to_string(), key.clone(), value],
+        "set" => vec!["SADD".to_string(), key.clone(), value],
+        "zset" => vec!["ZADD".to_string(), key.clone(), score.to_string(), value],
         other => return Err(format!("Unsupported key type: {other}")),
     };
-    let _ = s.query(db, args).await?;
+    let mut cmd = args;
+    if let Some(secs) = ttl {
+        if secs > 0 {
+            cmd.push("EXPIRE".to_string());
+            cmd.push(key);
+            cmd.push(secs.to_string());
+        }
+    }
+    let _ = s.query(db, cmd).await?;
     Ok(serde_json::json!({ "ok": true }))
 }
 

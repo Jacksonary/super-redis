@@ -5,6 +5,7 @@ import type { SelectedTarget } from "../types";
 import { api } from "../api";
 import { KeyBrowser } from "./KeyBrowser";
 import { ValuePanel } from "./ValuePanel";
+import { ConnInfoPanel } from "./ConnInfoPanel";
 import { TerminalTab } from "./TerminalTab";
 import { MonitorTab } from "./MonitorTab";
 
@@ -71,9 +72,7 @@ export function Workspace({ target, isDark, onDbChange }: { target: SelectedTarg
           {selectedKey ? (
             <ValuePanel target={target} currentKey={selectedKey} key={selectedKey} />
           ) : (
-            <div className="empty-state-wrap" style={{ height: "100%", justifyContent: "center", padding: 24 }}>
-              <Text type="secondary">{isDark ? "Please select a key" : "Please select a key"}</Text>
-            </div>
+            <ConnInfoPanel target={target} />
           )}
         </div>
       </div>

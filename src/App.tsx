@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Layout, theme, Typography, ConfigProvider } from "antd";
-import { DatabaseOutlined } from "@ant-design/icons";
+import { Layout, theme, Typography, ConfigProvider, Tooltip, Button } from "antd";
+import { DatabaseOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
 import { SettingsModal } from "./components/SettingsModal";
@@ -19,6 +19,7 @@ export default function App() {
   const [connections, setConnections] = useState<ConnectionSummary[]>([]);
   const [selected, setSelected] = useState<SelectedTarget | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [zoom, setZoom] = useState(100);
@@ -129,7 +130,7 @@ export default function App() {
           <div
             ref={siderRef}
             style={{
-              width: sidebarWidth,
+              width: collapsed ? 48 : sidebarWidth,
               background: "transparent",
               borderRight: `1px solid ${borderColor}`,
               height: "100vh",
@@ -137,19 +138,29 @@ export default function App() {
               left: 0,
               top: 0,
               zIndex: 1,
+              overflow: "hidden",
             }}
           >
-            <Sidebar
-              connections={connections}
-              selected={selected}
-              onSelect={setSelected}
-              isDark={isDark}
-              onThemeToggle={toggleTheme}
-              locale={locale}
-              onLocaleChange={changeLocale}
-              onConnectionsChange={refreshConnections}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
+            {collapsed ? (
+              <div style={{ paddingTop: 12, textAlign: "center" }}>
+                <Tooltip title="Expand sidebar">
+                  <Button icon={<MenuUnfoldOutlined />} onClick={() => setCollapsed(false)} />
+                </Tooltip>
+              </div>
+            ) : (
+              <Sidebar
+                connections={connections}
+                selected={selected}
+                onSelect={setSelected}
+                isDark={isDark}
+                onThemeToggle={toggleTheme}
+                locale={locale}
+                onLocaleChange={changeLocale}
+                onConnectionsChange={refreshConnections}
+                onOpenSettings={() => setSettingsOpen(true)}
+                onCollapse={() => setCollapsed(true)}
+              />
+            )}
             <div
               onMouseDown={() => {
                 dragging.current = true;
@@ -160,7 +171,7 @@ export default function App() {
             />
           </div>
 
-          <div ref={contentRef} style={{ marginLeft: sidebarWidth }}>
+          <div ref={contentRef} style={{ marginLeft: collapsed ? 48 : sidebarWidth }}>
             <Content style={{ background: contentBg, minHeight: "100vh" }}>
               {selected ? (
                 <Workspace

@@ -20,19 +20,33 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
   useEffect(() => {
     if (open) {
       form.resetFields();
-      form.setFieldsValue({
-        name: initialSummary?.name ?? "",
-        host: "127.0.0.1",
-        port: 6379,
-        db: 0,
-        mode: "standalone",
-        user: "default",
-        password: "",
-        clusterNodes: "",
-        sentinelMaster: "mymaster",
-        sentinelNodes: "",
-        tls: false,
-      });
+      // Prefill from the full saved connection so editing round-trips every field
+      // (host/port/db/mode/ACL/TLS/cluster/sentinel/readonly).
+      (async () => {
+        let full: Connection | undefined;
+        try {
+          if (initialSummary?.id) {
+            const all = await api.getConfig();
+            full = all.find((c) => c.id === initialSummary.id);
+          }
+        } catch {
+          /* ignore load error */
+        }
+        form.setFieldsValue({
+          name: initialSummary?.name ?? full?.name ?? "",
+          host: full?.host ?? "127.0.0.1",
+          port: full?.port ?? 6379,
+          db: full?.db ?? 0,
+          mode: full?.mode ?? "standalone",
+          user: full?.acl.username ?? "default",
+          password: full?.acl.password ?? "",
+          clusterNodes: (full?.cluster.nodes ?? []).join(", "),
+          sentinelMaster: full?.sentinel.masterName ?? "mymaster",
+          sentinelNodes: (full?.sentinel.nodes ?? []).join(", "),
+          tls: full?.tls.enabled ?? false,
+          readonly: full?.readonly ?? false,
+        });
+      })();
     }
   }, [open, initialSummary, form]);
 

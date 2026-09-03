@@ -21,6 +21,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
 
   const [view, setView] = useState<"flat" | "tree">("flat");
   const [delimiter, setDelimiter] = useState(":");
@@ -128,7 +129,12 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
   const doNew = async () => {
     try {
       const v = await form.validateFields();
-      await api.createKey(connId, db, v.key, v.type);
+      await api.createKey(connId, db, v.key, v.type, {
+        value: v.value,
+        field: v.field,
+        score: Number(v.score),
+        ttl: v.ttl ? Number(v.ttl) : undefined,
+      });
       message.success("created");
       setNewOpen(false);
       refreshCount();
@@ -177,6 +183,20 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             placeholder=":"
           />
           <Button size="small" loading={loadingAll} onClick={loadAll}>Load all keys</Button>
+          {activeFolder && (
+            <Popconfirm
+              title={`Delete all keys under "${activeFolder}${delimiter}*"?`}
+              onConfirm={async () => {
+                const res = await api.deleteKeysByPattern(connId, db, `${activeFolder}${delimiter}*`);
+                message.success(`deleted ${res.deleted}`);
+                setActiveFolder(null);
+                refreshCount();
+                load(pattern, 0, true);
+              }}
+            >
+              <Button size="small" danger>Delete folder</Button>
+            </Popconfirm>
+          )}
         </div>
       )}
 
@@ -214,12 +234,18 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             showLine
             showIcon={false}
             height={Math.max(320, window.innerHeight - 230)}
-            selectedKeys={activeKey ? [activeKey] : []}
+            selectedKeys={activeKey ? [activeKey] : activeFolder ? [activeFolder] : []}
             onSelect={(_keys, info) => {
               const key = (info.node as unknown as { key: string }).key;
-              if (key && keySet.has(key)) {
+              if (!key) return;
+              if (keySet.has(key)) {
                 setActiveKey(key);
+                setActiveFolder(null);
                 onSelectKey(key);
+              } else {
+                setActiveFolder(key);
+                setActiveKey(null);
+                onSelectKey("");
               }
             }}
           />
@@ -235,15 +261,8 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         )}
       </div>
 
-      <Modal open={newOpen} title="New Key" onOk={doNew} onCancel={() => setNewOpen(false)} okText="OK" cancelText="Cancel">
-        <Form form={form} layout="vertical" size="small" preserve={false}>
-          <Form.Item name="key" label="Key" rules={[{ required: true }]}>
-            <InputField />
-          </Form.Item>
-          <Form.Item name="type" label="Type" initialValue="string">
-            <Select options={["string", "hash", "list", "set", "zset"].map((t) => ({ value: t, label: t }))} />
-          </Form.Item>
-        </Form>
+      <Modal open={newOpen} title="New Key" onOk={doNew} onCancel={() => setNewOpen(false)} okText="OK" cancelText="Cancel" width={480}>
+        <NewKeyForm form={form} />
       </Modal>
 
       <Modal open={!!renameKey} title="Rename" onOk={doRename} onCancel={() => setRenameKey(null)} okText="OK" cancelText="Cancel">
@@ -262,5 +281,52 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         </Form>
       </Modal>
     </div>
+  );
+}
+
+function NewKeyForm({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
+  const type = Form.useWatch("type", form) || "string";
+  return (
+    <Form form={form} layout="vertical" size="small" preserve={false}>
+      <Form.Item name="key" label="Key" rules={[{ required: true }]}>
+        <InputField />
+      </Form.Item>
+      <Form.Item name="type" label="Type" initialValue="string">
+        <Select options={["string", "hash", "list", "set", "zset"].map((t) => ({ value: t, label: t }))} />
+      </Form.Item>
+      {type === "string" && (
+        <Form.Item name="value" label="Value">
+          <InputField />
+        </Form.Item>
+      )}
+      {type === "hash" && (
+        <>
+          <Form.Item name="field" label="Field">
+            <InputField />
+          </Form.Item>
+          <Form.Item name="value" label="Value">
+            <InputField />
+          </Form.Item>
+        </>
+      )}
+      {(type === "list" || type === "set") && (
+        <Form.Item name="value" label={type === "set" ? "Member" : "Item value"}>
+          <InputField />
+        </Form.Item>
+      )}
+      {type === "zset" && (
+        <>
+          <Form.Item name="score" label="Score" initialValue={0}>
+            <InputField type="number" />
+          </Form.Item>
+          <Form.Item name="value" label="Member">
+            <InputField />
+          </Form.Item>
+        </>
+      )}
+      <Form.Item name="ttl" label="TTL (seconds, optional)">
+        <InputField type="number" />
+      </Form.Item>
+    </Form>
   );
 }

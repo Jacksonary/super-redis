@@ -102,3 +102,31 @@ pub async fn delete_keys(conn_id: String, db: i64, keys: Vec<String>) -> Result<
 pub fn get_search_history() -> Result<Vec<String>, String> {
     Ok(Vec::new())
 }
+
+/// Delete every key matching a glob pattern (used by the tree "delete folder"
+/// action). SCANs the pattern and DELs in batches — never uses KEYS.
+#[tauri::command]
+pub async fn delete_keys_by_pattern(conn_id: String, db: i64, pattern: String) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    let mut deleted = 0i64;
+    let mut cursor = String::from("0");
+    loop {
+        let v = s
+            .query(db, vec!["SCAN".to_string(), cursor.clone(), "MATCH".to_string(), "COUNT".to_string(), "500".to_string()])
+            .await?;
+        let (next, keys) = parse_scan(&v);
+        if !keys.is_empty() {
+            let mut args = vec!["DEL".to_string()];
+            for k in keys {
+                args.push(k);
+            }
+            let r = s.query(db, args).await?;
+            deleted += val_to_i64(&r);
+        }
+        cursor = next.to_string();
+        if next == 0 {
+            break;
+        }
+    }
+    Ok(serde_json::json!({ "deleted": deleted }))
+}

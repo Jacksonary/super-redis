@@ -41,13 +41,44 @@ pub async fn get_db_count(conn_id: String) -> Result<i64, String> {
     Ok(digits.parse::<i64>().unwrap_or(16).max(1))
 }
 
-/// Full `INFO` output as JSON (RESP3 Map becomes an object; RESP2 bulk becomes a
-/// string the frontend shows raw).
+/// Parse INFO into `{ section: { key: value } }`. Handles RESP2 (bulk string with
+/// `# section` headers) and RESP3 (a `Map`).
+fn parse_info(v: &Value) -> serde_json::Value {
+    let text = match v {
+        Value::BulkString(b) => String::from_utf8_lossy(b).into_owned(),
+        Value::Map(_) => return value_to_json(v),
+        other => val_to_string(other),
+    };
+    let mut sections: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    let mut cur = "all".to_string();
+    sections.insert(cur.clone(), serde_json::json!({}));
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(sec) = line.strip_prefix('#') {
+            cur = sec.trim().to_string();
+            if !sections.contains_key(&cur) {
+                sections.insert(cur.clone(), serde_json::json!({}));
+            }
+            continue;
+        }
+        if let Some((k, v)) = line.split_once(':') {
+            if let Some(serde_json::Value::Object(map)) = sections.get_mut(&cur) {
+                map.insert(k.trim().to_string(), serde_json::Value::String(v.trim().to_string()));
+            }
+        }
+    }
+    serde_json::Value::Object(sections)
+}
+
+/// Full `INFO` output parsed into sections (server / memory / stats / keyspace…).
 #[tauri::command]
 pub async fn get_server_info(conn_id: String) -> Result<serde_json::Value, String> {
     let s = session(&conn_id).await?;
     let v = s.query(s.conn.db, vec!["INFO".to_string()]).await?;
-    Ok(value_to_json(&v))
+    Ok(parse_info(&v))
 }
 
 /// Slow log entries (SLOWLOG GET up to 20).

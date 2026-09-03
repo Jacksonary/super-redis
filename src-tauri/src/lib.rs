@@ -50,6 +50,8 @@ pub fn run() {
             commands::connections::select_database,
             commands::connections::set_readonly,
             commands::connections::get_connection_state,
+            commands::connections::disconnect_connection,
+            commands::connections::get_connection_status,
             // Keys
             commands::keys::list_keys,
             commands::keys::scan_keys,
@@ -58,6 +60,7 @@ pub fn run() {
             commands::keys::get_key_count,
             commands::keys::get_db_size,
             commands::keys::delete_keys,
+            commands::keys::delete_keys_by_pattern,
             commands::keys::get_search_history,
             // Values
             commands::values::get_value,

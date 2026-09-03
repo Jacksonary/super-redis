@@ -131,3 +131,18 @@ pub async fn get_connection_state(conn_id: String) -> Result<serde_json::Value, 
     let _ = s.query_str(s.conn.db, vec!["PING".to_string()]).await?;
     Ok(serde_json::json!({ "ok": true, "status": "ok" }))
 }
+
+/// Drop the cached session for a connection (disconnect). Does not delete the config.
+#[tauri::command]
+pub fn disconnect_connection(conn_id: String) -> Result<serde_json::Value, String> {
+    let _ = redisclient::drop_session(&conn_id);
+    Ok(serde_json::json!({ "ok": true }))
+}
+
+/// Report whether a connection currently has a live cached session + can reach the
+/// server. Returns `{ connected, healthy }`.
+#[tauri::command]
+pub async fn get_connection_status(conn_id: String) -> Result<serde_json::Value, String> {
+    let healthy = redisclient::test_session(&conn_id).await.is_ok();
+    Ok(serde_json::json!({ "connected": healthy, "healthy": healthy }))
+}

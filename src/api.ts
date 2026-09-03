@@ -66,6 +66,12 @@ export const api = {
   getConnectionState(connId: string): Promise<{ ok: boolean; status: string }> {
     return invoke("get_connection_state", { connId });
   },
+  disconnectConnection(connId: string): Promise<{ ok: boolean }> {
+    return invoke("disconnect_connection", { connId });
+  },
+  getConnectionStatus(connId: string): Promise<{ connected: boolean; healthy: boolean }> {
+    return invoke("get_connection_status", { connId });
+  },
 
   // ─── Keys ─────────────────────────────────────────────────────────────
   listKeys(
@@ -95,6 +101,9 @@ export const api = {
   },
   getSearchHistory(): Promise<string[]> {
     return invoke("get_search_history");
+  },
+  deleteKeysByPattern(connId: string, db: number, pattern: string): Promise<{ deleted: number }> {
+    return invoke("delete_keys_by_pattern", { connId, db, pattern });
   },
 
   // ─── Values: string ───────────────────────────────────────────────────
@@ -154,8 +163,23 @@ export const api = {
   },
 
   // ─── Key operations ───────────────────────────────────────────────────
-  createKey(connId: string, db: number, key: string, valueType: string): Promise<{ ok: boolean }> {
-    return invoke("create_key", { connId, db, key, valueType });
+  createKey(
+    connId: string,
+    db: number,
+    key: string,
+    valueType: string,
+    opts: { value?: string; field?: string; score?: number; ttl?: number } = {}
+  ): Promise<{ ok: boolean }> {
+    return invoke("create_key", {
+      connId,
+      db,
+      key,
+      valueType,
+      value: opts.value ?? null,
+      field: opts.field ?? null,
+      score: opts.score ?? null,
+      ttl: opts.ttl ?? null,
+    });
   },
   renameKey(connId: string, db: number, src: string, dst: string): Promise<{ ok: boolean }> {
     return invoke("rename_key", { connId, db, src, dst });
