@@ -232,10 +232,11 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         <div style={{ flex: 1, overflow: "auto", padding: 4 }}>
           <Tree
             treeData={treeData}
-            showLine
+            showLine={false}
             expandAction="click"
             expandedKeys={expandedKeys}
             onExpand={(keys) => setExpandedKeys(keys as string[])}
+            switcherIcon={() => <span style={{ width: 0, opacity: 0 }} />}
             height={Math.max(320, window.innerHeight - 230)}
             titleRender={(node) => (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
