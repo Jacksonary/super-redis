@@ -67,6 +67,8 @@ pub fn run() {
             commands::values::get_zset_items,
             commands::values::add_zset_item,
             commands::values::delete_zset_item,
+            // Value decode / formats
+            commands::value_decode::decode_value,
             // Streams
             commands::streams::get_stream_info,
             commands::streams::read_stream_entries,

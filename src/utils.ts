@@ -98,7 +98,13 @@ export function groupKeys(keys: string[], delimiter: string): KeyTreeNode[] {
         out.push({ key: node.key, title, isLeaf: true });
       }
     }
-    return out.sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
+    // Folders first, then leaves; each group sorted alphabetically by title.
+    return out.sort((a, b) => {
+      const aFolder = !!a.children;
+      const bFolder = !!b.children;
+      if (aFolder !== bFolder) return aFolder ? -1 : 1;
+      return a.title.localeCompare(b.title) || a.key.localeCompare(b.key);
+    });
   };
   return convert(root);
 }

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Tooltip, Typography, Segmented, message } from "antd";
+import { Button, Input, Tooltip, Typography, Select, message } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 
+const { TextArea } = Input;
 const { Text } = Typography;
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
-import { isValidJson, prettyJson } from "../utils";
 
-const { TextArea } = Input;
+const FORMATS = ["text", "json", "hex", "base64", "gzip", "deflate", "brotli", "msgpack"];
 
 interface Props {
   target: SelectedTarget;
@@ -17,10 +17,9 @@ interface Props {
 export function StringViewer({ target, currentKey }: Props) {
   const { connectionId: connId, db } = target;
   const [value, setValue] = useState("");
-  const [hex, setHex] = useState("");
   const [binary, setBinary] = useState(false);
-  const [json, setJson] = useState(false);
-  const [view, setView] = useState<"text" | "hex">("text");
+  const [format, setFormat] = useState("text");
+  const [decoded, setDecoded] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,16 +29,27 @@ export function StringViewer({ target, currentKey }: Props) {
       .then((r) => {
         setValue(r.value);
         setBinary(r.is_binary);
-        setHex(r.hex ?? "");
-        setView(r.is_binary ? "hex" : "text");
-        // Only attempt the (synchronous) JSON.parse on reasonably short strings so
-        // a multi-MB value doesn't block the main thread.
-        setJson(!r.is_binary && r.value.length < 200_000 && isValidJson(r.value));
+        setFormat("text");
       })
       .catch((e) => message.error(String(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connId, db, currentKey]);
+
+  // Fetch the decoded/prettified text when a non-text format is selected.
+  useEffect(() => {
+    if (format === "text") {
+      setDecoded(value);
+      return;
+    }
+    api
+      .decodeValue(connId, db, currentKey, format)
+      .then((r) => setDecoded(r.text))
+      .catch((e) => setDecoded(`(error: ${e})`));
+  }, [format, connId, db, currentKey, value]);
+
+  const shown = format === "text" ? value : decoded;
+  const editable = format === "text";
 
   const save = async () => {
     await api.setValue(connId, db, currentKey, value);
@@ -51,24 +61,25 @@ export function StringViewer({ target, currentKey }: Props) {
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <TextArea
           style={{ height: "100%", resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
-          value={view === "hex" && hex ? hex : value}
-          onChange={(e) => (view === "hex" && binary ? setHex(e.target.value) : setValue(e.target.value))}
-          disabled={loading}
+          value={shown}
+          onChange={(e) => editable && setValue(e.target.value)}
+          disabled={loading || !editable}
+          readOnly={!editable}
         />
-        <div style={{ position: "absolute", top: 6, right: 8, display: "flex", gap: 6 }}>
-          {binary ? (
-            <Segmented size="small" value={view} onChange={(v) => setView(v as "text" | "hex")} options={["hex", "text"]} />
-          ) : (
-            json && value && (
-              <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
-            )
-          )}
-          <Tooltip title="Copy value">
+        <div style={{ position: "absolute", top: 6, right: 8, display: "flex", gap: 6, alignItems: "center" }}>
+          <Select
+            size="small"
+            value={format}
+            onChange={setFormat}
+            style={{ width: 92 }}
+            options={FORMATS.map((f) => ({ value: f, label: f }))}
+          />
+          <Tooltip title="Copy {format}">
             <Button
               size="small"
               icon={<CopyOutlined />}
               onClick={async () => {
-                await navigator.clipboard.writeText(view === "hex" && hex ? hex : value);
+                await navigator.clipboard.writeText(shown);
                 message.success("copied");
               }}
             />
@@ -76,8 +87,13 @@ export function StringViewer({ target, currentKey }: Props) {
         </div>
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
+        <Button size="small" onClick={save} disabled={loading || !editable} type="primary">Save</Button>
       </div>
+      {editable && binary && (
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>Binary value — Text/hex/base64 formats are read-only.</Text>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,4 +7,5 @@ pub mod settings;
 pub mod streams;
 pub mod terminal;
 pub mod util;
+pub mod value_decode;
 pub mod values;

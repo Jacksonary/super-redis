@@ -113,6 +113,9 @@ export const api = {
   setValue(connId: string, db: number, key: string, value: string): Promise<{ ok: boolean }> {
     return invoke("set_value", { connId, db, key, value });
   },
+  decodeValue(connId: string, db: number, key: string, format: string): Promise<{ text: string; is_binary: boolean }> {
+    return invoke("decode_value", { connId, db, key, format });
+  },
   setValueWithTtl(connId: string, db: number, key: string, value: string, ttlSeconds: number): Promise<{ ok: boolean }> {
     return invoke("set_value_with_ttl", { connId, db, key, value, ttlSeconds });
   },
