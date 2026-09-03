@@ -79,7 +79,7 @@ export function TerminalTab({ target }: Props) {
           disabled={running}
         />
         <Button type="primary" onClick={run} loading={running} disabled={!input.trim()}>Run</Button>
-        <Button size="small" onClick={() => setLog([])}>Clear</Button>
+        <Button disabled={log.length === 0} onClick={() => setLog([])}>Clear</Button>
       </Space>
     </div>
   );

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Space, message } from "antd";
+import { Button, Input, Space, Typography, message } from "antd";
+
+const { Text } = Typography;
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 import { isValidJson, prettyJson } from "../utils";
@@ -39,13 +41,17 @@ export function StringViewer({ target, currentKey }: Props) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
-      <Space>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Button size="small" onClick={save} disabled={loading} type="primary">Save</Button>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>{binary ? "binary" : json ? "JSON" : "text"}</span>
-        {json && value && (
-          <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
-        )}
-      </Space>
+        <Space size={8}>
+          {json && value && (
+            <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
+          )}
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Format: {binary ? "binary" : json ? "JSON" : "plain"}
+          </Text>
+        </Space>
+      </div>
       <TextArea
         style={{ flex: 1, resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
         value={value}
