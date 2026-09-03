@@ -63,7 +63,7 @@ export interface KeyTreeNode {
  * kept and titled with the delimiter so no key is lost to an empty-title node.
  */
 export function groupKeys(keys: string[], delimiter: string): KeyTreeNode[] {
-  type N = { key: string; title: string; children: Record<string, N> };
+  type N = { key: string; title: string; children: Record<string, N>; isKey: boolean };
   const root: Record<string, N> = {};
   for (const raw of keys) {
     if (raw === "") continue;
@@ -73,26 +73,32 @@ export function groupKeys(keys: string[], delimiter: string): KeyTreeNode[] {
     for (let i = 0; i < segs.length; i++) {
       const seg = segs[i];
       path = i === 0 ? seg : path + delimiter + seg;
-      if (!cur[path]) cur[path] = { key: path, title: seg, children: {} };
+      if (!cur[path]) cur[path] = { key: path, title: seg, children: {}, isKey: false };
       if (i < segs.length - 1) cur = cur[path].children;
     }
-    const leaf = cur[path];
-    leaf.key = raw; // open the real key (may contain the delimiter)
+    cur[path].isKey = true;
   }
-  const convert = (m: Record<string, N>): KeyTreeNode[] =>
-    Object.keys(m)
-      .map((p) => {
-        const node = m[p];
-        const children = convert(node.children);
-        // Give empty segments a visible placeholder title (the delimiter).
-        const title = node.title === "" ? delimiter : node.title;
-        return {
-          key: node.key,
-          title,
-          children: children.length ? children : undefined,
-          isLeaf: children.length === 0,
-        };
-      })
-      .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
+  const convert = (m: Record<string, N>): KeyTreeNode[] => {
+    const out: KeyTreeNode[] = [];
+    for (const p of Object.keys(m)) {
+      const node = m[p];
+      const children = convert(node.children);
+      const title = node.title === "" ? delimiter : node.title;
+      if (node.isKey) {
+        // The real key always appears as its own leaf.
+        out.push({ key: node.key, title, isLeaf: true });
+        // If it is ALSO a prefix of other keys, show a separate folder node so the
+        // key and the folder don't get merged into one ambiguous node.
+        if (children.length) {
+          out.push({ key: node.key + delimiter, title, isLeaf: false, children });
+        }
+      } else if (children.length) {
+        out.push({ key: node.key, title, isLeaf: false, children });
+      } else {
+        out.push({ key: node.key, title, isLeaf: true });
+      }
+    }
+    return out.sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
+  };
   return convert(root);
 }

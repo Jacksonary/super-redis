@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Table, Tree, Input, Button, Space, Tooltip, Modal, Form, Input as InputField, Select, Segmented, Popconfirm, message } from "antd";
-import { ReloadOutlined, PlusOutlined, SearchOutlined, FolderOutlined } from "@ant-design/icons";
+import { ReloadOutlined, PlusOutlined, SearchOutlined, FolderOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 import { groupKeys, type KeyTreeNode } from "../utils";
@@ -26,6 +26,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
   const [view, setView] = useState<"flat" | "tree">("flat");
   const [delimiter, setDelimiter] = useState(":");
   const [loadingAll, setLoadingAll] = useState(false);
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
   const [newOpen, setNewOpen] = useState(false);
   const [renameKey, setRenameKey] = useState<string | null>(null);
@@ -232,10 +233,18 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
           <Tree
             treeData={treeData}
             showLine
+            expandAction="click"
+            expandedKeys={expandedKeys}
+            onExpand={(keys) => setExpandedKeys(keys as string[])}
             height={Math.max(320, window.innerHeight - 230)}
             titleRender={(node) => (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                {!node.isLeaf && <FolderOutlined style={{ color: "#faad14" }} />}
+                {!node.isLeaf &&
+                  (expandedKeys.includes(node.key as string) ? (
+                    <FolderOpenOutlined style={{ color: "#faad14" }} />
+                  ) : (
+                    <FolderOutlined style={{ color: "#faad14" }} />
+                  ))}
                 <span>{node.title}</span>
               </span>
             )}

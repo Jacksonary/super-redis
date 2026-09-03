@@ -48,31 +48,33 @@ export function StringViewer({ target, currentKey }: Props) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-        {binary ? (
-          <Segmented size="small" value={view} onChange={(v) => setView(v as "text" | "hex")} options={["hex", "text"]} />
-        ) : (
-          json && value && (
-            <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
-          )
-        )}
-        <Tooltip title="Copy value">
-          <Button
-            size="small"
-            icon={<CopyOutlined />}
-            onClick={async () => {
-              await navigator.clipboard.writeText(view === "hex" && hex ? hex : value);
-              message.success("copied");
-            }}
-          />
-        </Tooltip>
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+        <TextArea
+          style={{ height: "100%", resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
+          value={view === "hex" && hex ? hex : value}
+          onChange={(e) => (view === "hex" && binary ? setHex(e.target.value) : setValue(e.target.value))}
+          disabled={loading}
+        />
+        <div style={{ position: "absolute", top: 6, right: 8, display: "flex", gap: 6 }}>
+          {binary ? (
+            <Segmented size="small" value={view} onChange={(v) => setView(v as "text" | "hex")} options={["hex", "text"]} />
+          ) : (
+            json && value && (
+              <Button size="small" onClick={() => setValue(prettyJson(value))}>Format</Button>
+            )
+          )}
+          <Tooltip title="Copy value">
+            <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={async () => {
+                await navigator.clipboard.writeText(view === "hex" && hex ? hex : value);
+                message.success("copied");
+              }}
+            />
+          </Tooltip>
+        </div>
       </div>
-      <TextArea
-        style={{ flex: 1, resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
-        value={view === "hex" && hex ? hex : value}
-        onChange={(e) => (view === "hex" && binary ? setHex(e.target.value) : setValue(e.target.value))}
-        disabled={loading}
-      />
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <Button size="small" onClick={save} disabled={loading || binary} type="primary">Save</Button>
       </div>
