@@ -100,7 +100,7 @@ export interface KeyInfo {
 }
 
 export interface ListKeysResult {
-  items: KeyInfo[];
+  keys: string[];
   cursor: number;
   is_truncated: boolean;
 }

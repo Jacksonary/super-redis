@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Table, Input, Button, Space, Tooltip, Modal, Form, Input as InputField, Select, Popconfirm, message } from "antd";
 import { ReloadOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import type { KeyInfo, SelectedTarget } from "../types";
+import type { SelectedTarget } from "../types";
 import { api } from "../api";
-import { formatBytes } from "../utils";
 
 interface Props {
   target: SelectedTarget;
@@ -14,7 +13,7 @@ const PAGE = 300;
 
 export function KeyBrowser({ target, onSelectKey }: Props) {
   const { connectionId: connId, db } = target;
-  const [keys, setKeys] = useState<KeyInfo[]>([]);
+  const [keys, setKeys] = useState<string[]>([]);
   const [cursor, setCursor] = useState<number>(0);
   const [total, setTotal] = useState<number>(-1);
   const [pattern, setPattern] = useState("");
@@ -32,7 +31,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
       setLoading(true);
       try {
         const res = await api.listKeys(connId, db, { pattern: p || undefined, cursor: c ? String(c) : undefined, count: PAGE });
-        setKeys((prev) => (reset ? res.items : [...prev, ...res.items]));
+        setKeys((prev) => (reset ? res.keys : [...prev, ...res.keys]));
         setCursor(res.cursor);
       } catch (e) {
         message.error(String(e));
@@ -111,22 +110,6 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
     }
   };
 
-  const columns = [
-    {
-      title: "Key",
-      dataIndex: "key",
-      ellipsis: true,
-      render: (k: string, _r: KeyInfo, idx: number) => (
-        <Space size={6}>
-          <span style={{ fontSize: 12 }}>{k}</span>
-        </Space>
-      ),
-    },
-    { title: "Type", dataIndex: "type", width: 90, render: (t: string) => <span style={{ fontSize: 12 }}>{t}</span> },
-    { title: "TTL", dataIndex: "ttl", width: 80, render: (t: number) => <span style={{ fontSize: 12 }}>{t}</span> },
-    { title: "Size", dataIndex: "size", width: 90, render: (s: number | null) => <span style={{ fontSize: 12 }}>{formatBytes(s)}</span> },
-  ];
-
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 8 }}>
       <Space style={{ marginBottom: 8 }}>
@@ -149,35 +132,40 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
           <Button icon={<PlusOutlined />} onClick={() => setNewOpen(true)} />
         </Tooltip>
         {selectedRowKeys.length > 0 && (
-          <Popconfirm title={`Delete ${selectedRowKeys.length}  keys?`} onConfirm={() => doDelete(selectedRowKeys)}>
+          <Popconfirm title={`Delete ${selectedRowKeys.length} keys?`} onConfirm={() => doDelete(selectedRowKeys)}>
             <Button danger size="small">Delete</Button>
           </Popconfirm>
         )}
       </Space>
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        <Table<KeyInfo>
+        <Table<string>
           size="small"
-          rowKey="key"
-          columns={columns}
+          rowKey={(v, i) => `${i}`}
+          columns={[
+            {
+              title: "Key",
+              render: (_, v) => <span style={{ fontSize: 12, fontFamily: "SF Mono, Menlo, monospace" }}>{v}</span>,
+            },
+          ]}
           dataSource={keys}
           loading={loading}
           pagination={false}
           rowSelection={{ selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
           onRow={(record) => ({
             onClick: () => {
-              setActiveKey(record.key);
-              onSelectKey(record.key);
+              setActiveKey(record);
+              onSelectKey(record);
             },
           })}
-          rowClassName={(r) => (r.key === activeKey ? "ant-table-row-selected" : "")}
-          scroll={{ y: "calc(100vh - 320px)" }}
+          rowClassName={(r) => (r === activeKey ? "ant-table-row-selected" : "")}
+          scroll={{ y: "calc(100vh - 240px)" }}
         />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8 }}>
         <span style={{ fontSize: 12, opacity: 0.6 }}>
-          {total >= 0 ? `Total ${total}  keys` : "..."}
+          {total >= 0 ? `${total} keys` : "..."}
         </span>
         {cursor !== 0 && (
           <Button size="small" loading={loading} onClick={() => load(pattern, cursor, false)}>
@@ -192,9 +180,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
             <InputField />
           </Form.Item>
           <Form.Item name="type" label="Type" initialValue="string">
-            <Select
-              options={["string", "hash", "list", "set", "zset"].map((t) => ({ value: t, label: t }))}
-            />
+            <Select options={["string", "hash", "list", "set", "zset"].map((t) => ({ value: t, label: t }))} />
           </Form.Item>
         </Form>
       </Modal>
@@ -209,7 +195,7 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
 
       <Modal open={!!ttlKey} title="Set TTL (seconds)" onOk={doTtl} onCancel={() => setTtlKey(null)} okText="OK" cancelText="Cancel">
         <Form form={form} layout="vertical" size="small" preserve={false}>
-          <Form.Item name="seconds" label="Seconds (0 or empty = clear TTL)" initialValue={60} rules={[{ required: true }]}>
+          <Form.Item name="seconds" label="Seconds (0 or empty = remove expiry)" initialValue={60} rules={[{ required: true }]}>
             <InputField type="number" />
           </Form.Item>
         </Form>

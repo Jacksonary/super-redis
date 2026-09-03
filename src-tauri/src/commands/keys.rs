@@ -1,9 +1,11 @@
-use crate::commands::util::{key_info, parse_scan, session, val_to_i64, val_to_string};
+use crate::commands::util::{key_info, parse_scan, session, val_to_i64};
 use crate::types::{KeyInfo, ListKeysResult};
 
 /// SCAN-based key listing with a `MATCH` pattern and cursor pagination.
-/// The type of each key is filled via a single TYPE pipeline; TTL/size/encoding
-/// are fetched lazily by `get_key_info` so a large page stays cheap.
+///
+/// The list only returns key names (plus the cursor) — key metadata (type, TTL,
+/// size) is fetched lazily via `get_key_info` when a key is opened, so a large
+/// page never triggers a per-key round trip.
 #[tauri::command]
 pub async fn list_keys(
     conn_id: String,
@@ -28,30 +30,8 @@ pub async fn list_keys(
     let v = s.query(db, args).await?;
     let (next_cursor, keys) = parse_scan(&v);
 
-    // Fill types via one pipeline round trip.
-    let mut items: Vec<KeyInfo> = Vec::with_capacity(keys.len());
-    if !keys.is_empty() {
-        let types = s
-            .run_cmds(
-                db,
-                keys.iter()
-                    .map(|k| vec!["TYPE".to_string(), k.clone()])
-                    .collect(),
-            )
-            .await?;
-        for (k, t) in keys.iter().zip(types.iter()) {
-            items.push(KeyInfo {
-                key: k.clone(),
-                value_type: val_to_string(t),
-                ttl: -1,
-                size: None,
-                encoding: None,
-            });
-        }
-    }
-
     Ok(ListKeysResult {
-        items,
+        keys,
         cursor: next_cursor,
         is_truncated: next_cursor != 0,
     })

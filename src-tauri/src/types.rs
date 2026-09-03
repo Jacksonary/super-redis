@@ -285,7 +285,7 @@ pub struct KeyInfo {
 
 #[derive(Debug, Serialize)]
 pub struct ListKeysResult {
-    pub items: Vec<KeyInfo>,
+    pub keys: Vec<String>,
     pub cursor: u64,
     pub is_truncated: bool,
 }
