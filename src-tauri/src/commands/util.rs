@@ -72,16 +72,41 @@ pub async fn ttl(conn_id: &str, db: i64, key: &str) -> Result<i64, String> {
     Ok(val_to_i64(&v))
 }
 
+/// Fallback size when `MEMORY USAGE` is unavailable (older Redis, restricted ACL,
+/// managed service). Uses the type-specific length command, which is universally
+/// supported: STRLEN / HLEN / LLEN / SCARD / ZCARD / XLEN.
+async fn fallback_size(s: &Session, db: i64, key: &str, type_str: &str) -> Option<i64> {
+    let cmd = match type_str {
+        "string" => "STRLEN",
+        "hash" => "HLEN",
+        "list" => "LLEN",
+        "set" => "SCARD",
+        "zset" => "ZCARD",
+        "stream" => "XLEN",
+        _ => return None,
+    };
+    s.query(db, vec![cmd.to_string(), key.to_string()])
+        .await
+        .ok()
+        .map(|v| val_to_i64(&v))
+}
+
 /// Build a `KeyInfo` (type + TTL + size) for a key.
 pub async fn key_info(conn_id: &str, db: i64, key: &str) -> Result<KeyInfo, String> {
     let s = session(conn_id).await?;
     let typ = s.query(db, vec!["TYPE".to_string(), key.to_string()]).await?;
-    let size = s
-        .query(db, vec!["MEMORY USAGE".to_string(), key.to_string()])
-        .await
-        .ok()
-        .map(|v| val_to_i64(&v))
-        .filter(|v| *v >= 0);
+    let type_str = val_to_string(&typ);
+    let size = match s.query(db, vec!["MEMORY USAGE".to_string(), key.to_string()]).await {
+        Ok(v) => {
+            let n = val_to_i64(&v);
+            if n > 0 {
+                Some(n)
+            } else {
+                fallback_size(&s, db, key, &type_str).await
+            }
+        }
+        Err(_) => fallback_size(&s, db, key, &type_str).await,
+    };
     let encoding = s
         .query(db, vec!["OBJECT ENCODING".to_string(), key.to_string()])
         .await
@@ -90,7 +115,7 @@ pub async fn key_info(conn_id: &str, db: i64, key: &str) -> Result<KeyInfo, Stri
         .filter(|v| !v.is_empty());
     Ok(KeyInfo {
         key: key.to_string(),
-        value_type: val_to_string(&typ),
+        value_type: type_str,
         ttl: ttl(conn_id, db, key).await?,
         size,
         encoding,
