@@ -6,7 +6,8 @@ fn history() -> &'static Mutex<Vec<String>> {
     H.get_or_init(|| Mutex::new(Vec::new()))
 }
 
-/// Commands that block the connection and must not run on shared connections.
+/// Commands that block the connection and must NOT run on shared connections
+/// (they would wedge every subsequent command queued on the same pipe).
 fn is_blocking(cmd: &str) -> bool {
     let upper = cmd.to_uppercase();
     matches!(
@@ -15,15 +16,47 @@ fn is_blocking(cmd: &str) -> bool {
             | "UNSUBSCRIBE"
             | "PSUBSCRIBE"
             | "PUNSUBSCRIBE"
+            | "SSUBSCRIBE"
+            | "SUNSUBSCRIBE"
             | "MONITOR"
             | "BLPOP"
             | "BRPOP"
             | "BLMOVE"
             | "BRPOPLPUSH"
+            | "BZPOPMIN"
+            | "BZPOPMAX"
+            | "BZMPOP"
+            | "BLMPOP"
             | "WAIT"
-            | "XREADBLOCK"
+            | "WAITAOF"
             | "XREAD"
+            | "XREADGROUP"
+            | "XREADBLOCK"
     )
+}
+
+/// Commands that change the current database connection or that are destructive.
+/// `SELECT`/`SWAPDB` silently move the shared per-db connection, breaking the
+/// per-db isolation the rest of the app relies on.
+fn is_forbidden(cmd: &str) -> bool {
+    let upper = cmd.to_uppercase();
+    matches!(upper.as_str(), "SELECT" | "SWAPDB")
+}
+
+/// Commands that are destructive / privileged and should require explicit
+/// confirmation in the UI before running.
+fn is_dangerous(cmd: &str) -> bool {
+    let upper = cmd.to_uppercase();
+    [
+        // data destruction
+        "FLUSHALL", "FLUSHDB", "SWAPDB", "KEYS", "DEBUG", "SHUTDOWN", "RESTORE",
+        // key/ACL/config management
+        "ACL SETUSER", "ACL DELUSER", "CLIENT KILL", "CLIENT PAUSE", "CLIENT UNPAUSE",
+        "CONFIG SET", "CONFIG RESETSTAT", "REPLICAOF", "SLAVEOF", "MIGRATE", "CLUSTER",
+        "SCRIPT", "EVAL", "EVALSHA", "FCALL", "FUNCTION", "PUBSUB",
+    ]
+    .iter()
+    .any(|d| upper == *d || upper.starts_with(d))
 }
 
 fn parse_args(line: &str) -> Vec<String> {
@@ -65,10 +98,20 @@ pub async fn run_terminal_command(conn_id: String, db: i64, command: String) -> 
         return Ok(serde_json::json!({ "result": "" }));
     }
     let args = parse_args(trimmed);
+    // Guard against quote-only input that parses to an empty argv.
+    if args.is_empty() {
+        return Err("无法解析命令，请检查引号是否闭合".to_string());
+    }
     if is_blocking(&args[0]) {
         return Err(format!("Blocking command {} requires a dedicated connection; not supported here", args[0]));
     }
+    if is_forbidden(&args[0]) {
+        return Err(format!("{} 会改变连接或库状态，请在数据库选择器中切换", args[0]));
+    }
     let s = session(&conn_id).await?;
+    if s.conn.readonly && is_dangerous(&args[0]) {
+        return Err(format!("连接为只读模式，禁止执行危险命令 {}", args[0]));
+    }
     let v = s.query(db, args).await?;
     push_history(trimmed);
     Ok(serde_json::json!({ "result": val_to_string(&v) }))
@@ -80,20 +123,42 @@ pub async fn run_command(conn_id: String, db: i64, command: String) -> Result<se
     run_terminal_command(conn_id, db, command).await
 }
 
-/// Execute a batch of commands (one per line) and return their results in order.
+/// Execute a batch of commands (one per line) and return results aligned to the
+/// input length. Skipped/blocked lines produce a placeholder so the caller can
+/// map each result back to its command.
 #[tauri::command]
 pub async fn run_pipeline(conn_id: String, db: i64, commands: Vec<String>) -> Result<Vec<String>, String> {
     let s = session(&conn_id).await?;
     let mut cmds: Vec<Vec<String>> = Vec::new();
     for line in commands.iter() {
         let args = parse_args(line.trim());
-        if args.is_empty() || is_blocking(&args[0]) {
-            continue;
+        let skip = args.is_empty()
+            || is_blocking(&args[0])
+            || is_forbidden(&args[0])
+            || (s.conn.readonly && is_dangerous(&args[0]));
+        if !skip {
+            cmds.push(args);
         }
-        cmds.push(args);
     }
     let results = s.run_cmds(db, cmds).await?;
-    Ok(results.iter().map(val_to_string).collect())
+    let mut i = 0;
+    Ok(commands
+        .iter()
+        .map(|line| {
+            let args = parse_args(line.trim());
+            if args.is_empty() {
+                "(empty)".to_string()
+            } else if is_blocking(&args[0]) || is_forbidden(&args[0]) {
+                format!("(skipped: {})", args[0])
+            } else if s.conn.readonly && is_dangerous(&args[0]) {
+                format!("(blocked: readonly, {})", args[0])
+            } else {
+                let v = results.get(i).cloned().unwrap_or(redis::Value::Nil);
+                i += 1;
+                val_to_string(&v)
+            }
+        })
+        .collect())
 }
 
 #[tauri::command]

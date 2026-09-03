@@ -52,7 +52,9 @@ pub async fn update_connection(conn: crate::types::Connection) -> Result<Connect
 
 #[tauri::command]
 pub async fn clone_connection(conn_id: String) -> Result<ConnectionSummary, String> {
-    let mut cfg = redisclient::load_config_with_ids()?;
+    // Use load_config() (hydrates secrets from the keyring) so the clone carries
+    // the source's credentials; save_config then persists them under the new id.
+    let mut cfg = redisclient::load_config()?;
     let mut cloned = cfg
         .connections
         .iter()

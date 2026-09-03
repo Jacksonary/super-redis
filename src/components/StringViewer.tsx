@@ -27,7 +27,9 @@ export function StringViewer({ target, currentKey }: Props) {
       .then((r) => {
         setValue(r.value);
         setBinary(r.is_binary);
-        setJson(!r.is_binary && isValidJson(r.value));
+        // Only attempt the (synchronous) JSON.parse on reasonably short strings so
+        // a multi-MB value doesn't block the main thread.
+        setJson(!r.is_binary && r.value.length < 200_000 && isValidJson(r.value));
       })
       .catch((e) => message.error(String(e)))
       .finally(() => setLoading(false));

@@ -117,6 +117,7 @@ export interface HashField {
 
 export interface HashFieldsResult {
   items: HashField[];
+  cursor: number;
   total: number;
 }
 
@@ -127,6 +128,7 @@ export interface ListItemsResult {
 
 export interface SetMembersResult {
   members: string[];
+  cursor: number;
   total: number;
 }
 

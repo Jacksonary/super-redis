@@ -23,10 +23,11 @@ export function ValuePanel({ target, currentKey }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([api.getKeyType(connId, db, currentKey), api.getKeyInfo(connId, db, currentKey)])
-      .then(([t, info]) => {
-        setType(t);
+    api
+      .getKeyInfo(connId, db, currentKey)
+      .then((info) => {
         setMeta(info);
+        setType(info.type);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

@@ -26,7 +26,7 @@ export function HashViewer({ target, currentKey }: Props) {
       try {
         const res = await api.getHashFields(connId, db, currentKey, c ? String(c) : undefined, PAGE);
         setFields((prev) => (reset ? res.items : [...prev, ...res.items]));
-        setCursor(res.total);
+        setCursor(res.cursor);
       } catch (e) {
         message.error(String(e));
       } finally {

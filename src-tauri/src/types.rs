@@ -305,6 +305,7 @@ pub struct HashField {
 #[derive(Debug, Serialize)]
 pub struct HashFieldsResult {
     pub items: Vec<HashField>,
+    pub cursor: u64,
     pub total: i64,
 }
 
@@ -317,6 +318,7 @@ pub struct ListItemsResult {
 #[derive(Debug, Serialize)]
 pub struct SetMembersResult {
     pub members: Vec<String>,
+    pub cursor: u64,
     pub total: i64,
 }
 

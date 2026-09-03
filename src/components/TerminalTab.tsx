@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Input, Button, Space, Typography } from "antd";
+import { Input, Button, Space, Typography, Modal } from "antd";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 
@@ -15,6 +15,13 @@ interface LogEntry {
   error?: boolean;
 }
 
+// Destructive / privileged commands that require an explicit confirmation.
+const DANGER = new Set([
+  "FLUSHALL", "FLUSHDB", "SWAPDB", "KEYS", "DEBUG", "SHUTDOWN", "RESTORE",
+  "ACL", "CLIENT", "CONFIG", "REPLICAOF", "SLAVEOF", "MIGRATE", "CLUSTER",
+  "SCRIPT", "EVAL", "EVALSHA", "FCALL", "FUNCTION", "PUBSUB",
+]);
+
 export function TerminalTab({ target }: Props) {
   const { connectionId: connId, db } = target;
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -22,9 +29,7 @@ export function TerminalTab({ target }: Props) {
   const [running, setRunning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const run = async () => {
-    const cmd = input.trim();
-    if (!cmd) return;
+  const execute = async (cmd: string) => {
     setRunning(true);
     setInput("");
     try {
@@ -36,6 +41,24 @@ export function TerminalTab({ target }: Props) {
       setRunning(false);
       requestAnimationFrame(() => scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight));
     }
+  };
+
+  const run = () => {
+    const cmd = input.trim();
+    if (!cmd) return;
+    const first = cmd.split(/\s+/)[0].toUpperCase();
+    if (DANGER.has(first)) {
+      Modal.confirm({
+        title: "Run dangerous command?",
+        content: `This can modify or destroy data: ${cmd}`,
+        okText: "Run",
+        cancelText: "Cancel",
+        okButtonProps: { danger: true },
+        onOk: () => execute(cmd),
+      });
+      return;
+    }
+    execute(cmd);
   };
 
   return (

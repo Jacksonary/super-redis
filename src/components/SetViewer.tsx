@@ -23,7 +23,7 @@ export function SetViewer({ target, currentKey }: Props) {
       try {
         const res = await api.getSetItems(connId, db, currentKey, c ? String(c) : undefined, PAGE);
         setMembers((prev) => (reset ? res.members : [...prev, ...res.members]));
-        setCursor(res.total);
+        setCursor(res.cursor);
       } catch (e) {
         message.error(String(e));
       } finally {

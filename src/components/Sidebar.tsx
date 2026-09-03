@@ -193,17 +193,13 @@ export function Sidebar(props: Props) {
       <Modal
         open={!!confirmDelete}
         title={props.locale === "zh-CN" ? "Delete Connection" : "Delete connection"}
-        okText={props.locale === "zh-CN" ? "OK" : "OK"}
-        cancelText={props.locale === "zh-CN" ? "Cancel" : "Cancel"}
+        okText="OK"
+        cancelText="Cancel"
         onOk={handleDelete}
         onCancel={() => setConfirmDelete(null)}
         okButtonProps={{ danger: true }}
       >
-        {confirmDelete
-          ? props.locale === "zh-CN"
-            ? `Delete connection "${confirmDelete.name}」？`
-            : `Delete connection "${confirmDelete.name}"?`
-          : ""}
+        {confirmDelete ? `Delete connection "${confirmDelete.name}"?` : ""}
       </Modal>
     </div>
   );

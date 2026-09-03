@@ -184,7 +184,8 @@ export function KeyBrowser({ target, onSelectKey }: Props) {
         <div style={{ flex: 1, overflow: "auto" }}>
           <Table<string>
             size="small"
-            rowKey={(v, i) => `${i}`}
+            rowKey={(v) => v}
+            virtual
             columns={[
               {
                 title: "Key",

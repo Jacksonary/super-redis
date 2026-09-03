@@ -55,27 +55,37 @@ export interface KeyTreeNode {
 
 /**
  * Group a flat list of Redis keys into a folder tree by a delimiter (default ":").
- * Each segment becomes a folder node; the full key path becomes a leaf.
+ * Each segment becomes a folder node; the real key is always the leaf's `key` so it
+ * stays openable. Empty segments (leading / trailing / consecutive delimiters) are
+ * dropped so no empty-title folder is produced.
  */
 export function groupKeys(keys: string[], delimiter: string): KeyTreeNode[] {
-  const root: Record<string, Record<string, unknown> & { children: Record<string, unknown> }> = {};
-  for (const k of keys) {
-    const segs = k.split(delimiter);
-    let cur = root as Record<string, Record<string, unknown> & { children: Record<string, unknown> }>;
+  type N = { key: string; title: string; children: Record<string, N> };
+  const root: Record<string, N> = {};
+  const collect = (raw: string, segs: string[]) => {
+    let cur = root;
     let path = "";
     for (let i = 0; i < segs.length; i++) {
       path = i === 0 ? segs[0] : path + delimiter + segs[i];
-      if (!cur[path]) cur[path] = { children: {} };
-      if (i < segs.length - 1) cur = cur[path].children as typeof cur;
+      if (!cur[path]) cur[path] = { key: path, title: segs[i], children: {} };
+      if (i < segs.length - 1) cur = cur[path].children;
     }
+    const leaf = cur[path];
+    leaf.key = raw; // open the real key (may contain the delimiter)
+    leaf.title = segs[segs.length - 1];
+  };
+  for (const raw of keys) {
+    const segs = raw.split(delimiter).filter((s) => s !== "");
+    if (segs.length > 0) collect(raw, segs);
   }
-  const convert = (m: Record<string, Record<string, unknown> & { children: Record<string, unknown> }>): KeyTreeNode[] =>
+  const convert = (m: Record<string, N>): KeyTreeNode[] =>
     Object.keys(m)
       .map((p) => {
-        const children = convert(m[p].children as typeof m);
+        const node = m[p];
+        const children = convert(node.children);
         return {
-          key: p,
-          title: p.split(delimiter).pop() || p,
+          key: node.key,
+          title: node.title,
           children: children.length ? children : undefined,
           isLeaf: children.length === 0,
         };

@@ -28,6 +28,7 @@ pub fn val_to_string(v: &Value) -> String {
         Value::VerbatimString { text, .. } => text.clone(),
         Value::Push { data, .. } => data.iter().map(val_to_string).collect::<Vec<_>>().join(", "),
         Value::Attribute { data, .. } => val_to_string(data),
+        Value::ServerError(e) => format!("ERR: {e:?}"),
         unk => format!("{unk:?}"),
     }
 }

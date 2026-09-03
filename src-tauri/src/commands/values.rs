@@ -76,14 +76,15 @@ pub async fn get_hash_fields(
         )
         .await?;
     let (next, flat) = parse_scan(&v);
-    let items = flat
+    let items: Vec<HashField> = flat
         .chunks(2)
         .map(|pair| HashField {
             field: pair[0].clone(),
             value: pair.get(1).cloned().unwrap_or_default(),
         })
         .collect();
-    Ok(HashFieldsResult { items, total: next as i64 })
+    let total = items.len() as i64;
+    Ok(HashFieldsResult { items, cursor: next, total })
 }
 
 #[tauri::command]
@@ -146,9 +147,21 @@ pub async fn push_list_item(conn_id: String, db: i64, key: String, value: String
 #[tauri::command]
 pub async fn delete_list_item(conn_id: String, db: i64, key: String, value: String, index: Option<i64>) -> Result<serde_json::Value, String> {
     let s = session(&conn_id).await?;
-    let _ = index;
-    let v = s.query(db, vec!["LREM".to_string(), key, "0".to_string(), value]).await?;
-    Ok(serde_json::json!({ "deleted": val_to_i64(&v) }))
+    // With an explicit index, delete exactly that element: overwrite it with a
+    // unique sentinel, then LREM that sentinel once. Without an index, fall back
+    // to removing all elements equal to `value`.
+    match index {
+        Some(idx) if idx >= 0 => {
+            let sentinel = format!("__sr_del_{}_{}", uuid::Uuid::new_v4(), idx);
+            s.query(db, vec!["LSET".to_string(), key.clone(), idx.to_string(), sentinel.clone()]).await?;
+            let v = s.query(db, vec!["LREM".to_string(), key, "1".to_string(), sentinel]).await?;
+            Ok(serde_json::json!({ "deleted": val_to_i64(&v) }))
+        }
+        _ => {
+            let v = s.query(db, vec!["LREM".to_string(), key, "0".to_string(), value]).await?;
+            Ok(serde_json::json!({ "deleted": val_to_i64(&v) }))
+        }
+    }
 }
 
 #[tauri::command]
@@ -178,7 +191,8 @@ pub async fn get_set_items(
         )
         .await?;
     let (next, members) = parse_scan(&v);
-    Ok(SetMembersResult { members, total: next as i64 })
+    let total = members.len() as i64;
+    Ok(SetMembersResult { members, cursor: next, total })
 }
 
 #[tauri::command]

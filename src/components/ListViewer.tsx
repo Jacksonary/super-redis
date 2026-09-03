@@ -45,8 +45,8 @@ export function ListViewer({ target, currentKey }: Props) {
     load(page);
   };
 
-  const remove = async (value: string) => {
-    await api.deleteListItem(connId, db, currentKey, value, undefined);
+  const remove = async (value: string, index?: number) => {
+    await api.deleteListItem(connId, db, currentKey, value, index);
     message.success("deleted");
     load(page);
   };
@@ -73,8 +73,8 @@ export function ListViewer({ target, currentKey }: Props) {
           {
             title: "Actions",
             width: 90,
-            render: (_, v) => (
-              <Button size="small" type="link" danger onClick={() => remove(v)}>Delete</Button>
+            render: (_, v, i) => (
+              <Button size="small" type="link" danger onClick={() => remove(v, page * PAGE + i)}>Delete</Button>
             ),
           },
         ]}
