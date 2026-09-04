@@ -33,15 +33,3 @@ pub fn set_language(language: String) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "ok": true }))
 }
 
-#[tauri::command]
-pub fn get_zoom() -> Result<u32, String> {
-    Ok(redisclient::load_settings().zoom_percent)
-}
-
-#[tauri::command]
-pub fn put_zoom(zoom: u32) -> Result<serde_json::Value, String> {
-    let mut s = redisclient::load_settings();
-    s.zoom_percent = zoom;
-    redisclient::save_settings(&s)?;
-    Ok(serde_json::json!({ "ok": true }))
-}

@@ -10,14 +10,19 @@ pub fn run() {
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(
-            |app, _argv, _cwd| {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.unminimize();
-                    let _ = w.set_focus();
-                }
-            },
-        ));
+        // Single-instance is opt-out via settings: if allow_multi_instance is true
+        // the user can run several copies, so do not register the plugin.
+        let allow_multi = redisclient::load_settings().allow_multi_instance;
+        if !allow_multi {
+            builder = builder.plugin(tauri_plugin_single_instance::init(
+                |app, _argv, _cwd| {
+                    if let Some(w) = app.get_webview_window("main") {
+                        let _ = w.unminimize();
+                        let _ = w.set_focus();
+                    }
+                },
+            ));
+        }
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
 
@@ -31,6 +36,7 @@ pub fn run() {
             // Config & settings
             commands::config::get_config,
             commands::config::put_config,
+            commands::config::export_config,
             commands::config::get_connection_groups,
             commands::config::put_connection_groups,
             commands::settings::get_app_settings,
@@ -38,8 +44,6 @@ pub fn run() {
             commands::settings::get_theme,
             commands::settings::put_theme,
             commands::settings::set_language,
-            commands::settings::get_zoom,
-            commands::settings::put_zoom,
             // Connections
             commands::connections::list_connections,
             commands::connections::create_connection,
@@ -60,6 +64,7 @@ pub fn run() {
             commands::keys::get_key_count,
             commands::keys::get_db_size,
             commands::keys::delete_keys,
+            commands::keys::unlink_keys,
             commands::keys::delete_keys_by_pattern,
             commands::keys::get_search_history,
             // Values
@@ -67,6 +72,9 @@ pub fn run() {
             commands::values::get_zset_items,
             commands::values::add_zset_item,
             commands::values::delete_zset_item,
+            commands::values::search_zset_member,
+            commands::values::update_zset_score,
+            commands::values::rename_zset_member,
             // Value decode / formats
             commands::value_decode::decode_value,
             // Streams
@@ -88,13 +96,18 @@ pub fn run() {
             commands::values::get_hash_field,
             commands::values::set_hash_field,
             commands::values::delete_hash_field,
+            commands::values::rename_hash_field,
+            commands::values::search_hash_field,
             commands::values::get_list_items,
             commands::values::push_list_item,
             commands::values::delete_list_item,
             commands::values::set_list_value,
+            commands::values::search_list_value,
             commands::values::get_set_items,
             commands::values::add_set_item,
             commands::values::delete_set_item,
+            commands::values::search_set_member,
+            commands::values::rename_set_member,
             // Key operations
             commands::key_ops::create_key,
             commands::key_ops::rename_key,

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Input, Button, Space, Modal, Popconfirm, message } from "antd";
+import { Table, Input, Button, Space, Modal, Popconfirm } from "antd";
+import { message } from "../antd-app";
 import type { SelectedTarget, StreamEntry } from "../types";
 import { api } from "../api";
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
+  refreshSignal?: number;
 }
 
-export function StreamViewer({ target, currentKey }: Props) {
+export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
   const { connectionId: connId, db } = target;
   const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [length, setLength] = useState(0);
@@ -33,7 +35,7 @@ export function StreamViewer({ target, currentKey }: Props) {
 
   useEffect(() => {
     load();
-  }, [connId, db, currentKey, load]);
+  }, [connId, db, currentKey, load, refreshSignal]);
 
   const addEntry = async () => {
     const pairs = fieldsText
@@ -67,7 +69,7 @@ export function StreamViewer({ target, currentKey }: Props) {
   };
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
+    <div className="value-viewer" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <Space>
         <span style={{ fontSize: 12, opacity: 0.7 }}>Length: {length}</span>
         <Button size="small" type="primary" onClick={() => setAddOpen(true)}>Add entry</Button>
@@ -78,7 +80,7 @@ export function StreamViewer({ target, currentKey }: Props) {
         size="small"
         rowKey="id"
         columns={[
-          { title: "ID", dataIndex: "id", width: 130, render: (id: string) => <span style={{ fontSize: 12, fontFamily: "monospace" }}>{id}</span> },
+          { title: "ID", dataIndex: "id", width: 130, render: (id: string) => <span className="mono" style={{ fontSize: 12 }}>{id}</span> },
           {
             title: "Fields",
             dataIndex: "fields",
@@ -110,7 +112,8 @@ export function StreamViewer({ target, currentKey }: Props) {
           onChange={(e) => setFieldsText(e.target.value)}
           rows={5}
           placeholder={"field1 value1\nfield2 value2"}
-          style={{ fontFamily: "monospace", fontSize: 12.5 }}
+          className="mono"
+          style={{ fontSize: 12.5 }}
         />
       </Modal>
 

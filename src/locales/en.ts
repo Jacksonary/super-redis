@@ -33,7 +33,6 @@ export const en: Record<string, string> = {
   "connection.form.testSuccess": "Connection succeeded",
   "connection.form.testFail": "Connection failed",
   "keys.search": "Search key",
-  "keys.loadAll": "Load all",
   "keys.delete": "Delete",
   "keys.rename": "Rename",
   "keys.new": "New Key",

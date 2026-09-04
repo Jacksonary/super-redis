@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState } from "react";
-import { Table, Button, Space, message } from "antd";
+import { Table, Button, Space } from "antd";
+import { message } from "../antd-app";
 import type { SelectedTarget, SlowlogEntry } from "../types";
 import { api } from "../api";
 
@@ -44,7 +45,7 @@ export function SlowlogPanel({ target }: { target: SelectedTarget }) {
         columns={[
           { title: "ID", dataIndex: "id", width: 70 },
           { title: "Duration (µs)", dataIndex: "duration_us", width: 110 },
-          { title: "Command", dataIndex: "command", render: (c: string) => <span style={{ fontSize: 11.5, fontFamily: "monospace" }}>{c}</span> },
+          { title: "Command", dataIndex: "command", render: (c: string) => <span className="mono" style={{ fontSize: 11.5 }}>{c}</span> },
           { title: "Client", dataIndex: "client", width: 120 },
         ]}
         dataSource={rows}

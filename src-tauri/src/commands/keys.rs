@@ -88,12 +88,49 @@ pub async fn delete_keys(conn_id: String, db: i64, keys: Vec<String>) -> Result<
         return Ok(serde_json::json!({ "deleted": 0 }));
     }
     let s = session(&conn_id).await?;
-    let mut args = vec!["DEL".to_string()];
-    for k in keys {
-        args.push(k);
+    // Delete in configurable batches with a throttle between batches so a large
+    // selection (and the remote it hits) isn't slammed by one giant DEL.
+    let st = crate::redisclient::load_settings();
+    let batch = st.scan_count.clamp(1, 2000) as usize;
+    let interval = st.operate_interval_ms;
+    let mut deleted = 0i64;
+    for chunk in keys.chunks(batch) {
+        let mut args = vec!["DEL".to_string()];
+        for k in chunk {
+            args.push(k.clone());
+        }
+        let v = s.query(db, args).await?;
+        deleted += val_to_i64(&v);
+        if interval > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
+        }
     }
-    let v = s.query(db, args).await?;
-    let deleted = val_to_i64(&v);
+    Ok(serde_json::json!({ "deleted": deleted }))
+}
+
+/// Unlink keys (asynchronous DELETE) so large values don't block the Redis event
+/// loop. Same batching/throttle as delete_keys, but uses UNLINK instead of DEL.
+#[tauri::command]
+pub async fn unlink_keys(conn_id: String, db: i64, keys: Vec<String>) -> Result<serde_json::Value, String> {
+    if keys.is_empty() {
+        return Ok(serde_json::json!({ "deleted": 0 }));
+    }
+    let s = session(&conn_id).await?;
+    let st = crate::redisclient::load_settings();
+    let batch = st.scan_count.clamp(1, 2000) as usize;
+    let interval = st.operate_interval_ms;
+    let mut deleted = 0i64;
+    for chunk in keys.chunks(batch) {
+        let mut args = vec!["UNLINK".to_string()];
+        for k in chunk {
+            args.push(k.clone());
+        }
+        let v = s.query(db, args).await?;
+        deleted += val_to_i64(&v);
+        if interval > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
+        }
+    }
     Ok(serde_json::json!({ "deleted": deleted }))
 }
 
@@ -108,11 +145,14 @@ pub fn get_search_history() -> Result<Vec<String>, String> {
 #[tauri::command]
 pub async fn delete_keys_by_pattern(conn_id: String, db: i64, pattern: String) -> Result<serde_json::Value, String> {
     let s = session(&conn_id).await?;
+    let st = crate::redisclient::load_settings();
+    let batch = st.scan_count.clamp(1, 2000) as usize;
+    let interval = st.operate_interval_ms;
     let mut deleted = 0i64;
     let mut cursor = String::from("0");
     loop {
         let v = s
-            .query(db, vec!["SCAN".to_string(), cursor.clone(), "MATCH".to_string(), "COUNT".to_string(), "500".to_string()])
+            .query(db, vec!["SCAN".to_string(), cursor.clone(), "MATCH".to_string(), pattern.clone(), "COUNT".to_string(), batch.to_string()])
             .await?;
         let (next, keys) = parse_scan(&v);
         if !keys.is_empty() {
@@ -122,6 +162,10 @@ pub async fn delete_keys_by_pattern(conn_id: String, db: i64, pattern: String) -
             }
             let r = s.query(db, args).await?;
             deleted += val_to_i64(&r);
+            // Throttle between batches so a huge prefix doesn't flood the remote.
+            if interval > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
+            }
         }
         cursor = next.to_string();
         if next == 0 {

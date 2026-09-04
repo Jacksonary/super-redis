@@ -233,14 +233,18 @@ pub struct AppSettings {
     pub font_family: String,
     #[serde(default = "default_font_size")]
     pub font_size: u32,
-    #[serde(default = "default_zoom")]
-    pub zoom_percent: u32,
     #[serde(default = "default_language")]
     pub language: String, // zh-CN | en-US
     #[serde(default)]
     pub default_db: i64,
     #[serde(default = "default_scan_count")]
     pub scan_count: u64,
+    #[serde(default = "default_operate_interval")]
+    pub operate_interval_ms: u64,
+    #[serde(default = "default_key_delimiter")]
+    pub key_delimiter: String,
+    #[serde(default = "default_allow_multi_instance")]
+    pub allow_multi_instance: bool,
     #[serde(default)]
     pub show_sensitive: bool,
     #[serde(default = "default_terminal_history")]
@@ -250,9 +254,11 @@ pub struct AppSettings {
 fn default_theme() -> String { "light".to_string() }
 fn default_font() -> String { "SF Mono".to_string() }
 fn default_font_size() -> u32 { 14 }
-fn default_zoom() -> u32 { 100 }
 fn default_language() -> String { "en".to_string() }
-fn default_scan_count() -> u64 { 1000 }
+fn default_scan_count() -> u64 { 500 }
+fn default_operate_interval() -> u64 { 50 }
+fn default_key_delimiter() -> String { ":".to_string() }
+fn default_allow_multi_instance() -> bool { false }
 fn default_terminal_history() -> u32 { 500 }
 
 impl Default for AppSettings {
@@ -261,10 +267,12 @@ impl Default for AppSettings {
             theme: default_theme(),
             font_family: default_font(),
             font_size: default_font_size(),
-            zoom_percent: default_zoom(),
             language: default_language(),
             default_db: 0,
             scan_count: default_scan_count(),
+            operate_interval_ms: default_operate_interval(),
+            key_delimiter: default_key_delimiter(),
+            allow_multi_instance: default_allow_multi_instance(),
             show_sensitive: false,
             terminal_max_history: default_terminal_history(),
         }

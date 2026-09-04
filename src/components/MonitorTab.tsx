@@ -9,7 +9,7 @@ type SubTab = "info" | "slowlog";
 export function MonitorTab({ target }: { target: SelectedTarget }) {
   const [sub, setSub] = useState<SubTab>("info");
   return (
-    <div style={{ height: "calc(40vh - 40px)", display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "6px 12px" }}>
         <Segmented
           value={sub}

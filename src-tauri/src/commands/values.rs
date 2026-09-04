@@ -77,7 +77,7 @@ pub async fn get_hash_fields(
     let v = s
         .query(
             db,
-            vec!["HSCAN".to_string(), key, cursor, "COUNT".to_string(), count.to_string()],
+            vec!["HSCAN".to_string(), key.clone(), cursor, "COUNT".to_string(), count.to_string()],
         )
         .await?;
     let (next, flat) = parse_scan(&v);
@@ -88,8 +88,38 @@ pub async fn get_hash_fields(
             value: pair.get(1).cloned().unwrap_or_default(),
         })
         .collect();
-    let total = items.len() as i64;
+    // HLEN gives the FULL field count, not just the current HSCAN page.
+    let total = val_to_i64(&s.query(db, vec!["HLEN".to_string(), key]).await?);
     Ok(HashFieldsResult { items, cursor: next, total })
+}
+
+/// Search a hash for fields matching a pattern (HSCAN MATCH). Exact query uses
+/// HGET for an O(1) value lookup.
+#[tauri::command]
+pub async fn search_hash_field(conn_id: String, db: i64, key: String, field: String) -> Result<HashFieldsResult, String> {
+    let s = session(&conn_id).await?;
+    let is_pattern = field.contains('*') || field.contains('?') || field.contains('[');
+    if !is_pattern {
+        let v = s.query(db, vec!["HGET".to_string(), key.clone(), field.clone()]).await?;
+        let value = val_to_string(&v);
+        let items = if v != Value::Nil { vec![HashField { field, value }] } else { Vec::new() };
+        return Ok(HashFieldsResult { items, cursor: 0, total: val_to_i64(&s.query(db, vec!["HLEN".to_string(), key]).await?) });
+    }
+    let mut cursor = String::from("0");
+    let mut flat = Vec::new();
+    loop {
+        let v = s.query(db, vec!["HSCAN".to_string(), key.clone(), cursor.clone(), "MATCH".to_string(), field.clone(), "COUNT".to_string(), "500".to_string()]).await?;
+        let (next, page) = parse_scan(&v);
+        flat.extend(page);
+        cursor = next.to_string();
+        if next == 0 { break; }
+    }
+    let items: Vec<HashField> = flat.chunks(2).map(|pair| HashField {
+        field: pair[0].clone(),
+        value: pair.get(1).cloned().unwrap_or_default(),
+    }).collect();
+    let total = val_to_i64(&s.query(db, vec!["HLEN".to_string(), key]).await?);
+    Ok(HashFieldsResult { items, cursor: 0, total })
 }
 
 #[tauri::command]
@@ -115,6 +145,18 @@ pub async fn delete_hash_field(conn_id: String, db: i64, key: String, fields: Ve
     }
     let v = s.query(db, args).await?;
     Ok(serde_json::json!({ "deleted": val_to_i64(&v) }))
+}
+
+/// Rename a hash field (and set its value): HDEL the old field, then HSET the
+/// new field = value. If the field name is unchanged, this is just an HSET.
+#[tauri::command]
+pub async fn rename_hash_field(conn_id: String, db: i64, key: String, old_field: String, new_field: String, value: String) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    if old_field != new_field {
+        s.query(db, vec!["HDEL".to_string(), key.clone(), old_field]).await?;
+    }
+    s.query(db, vec!["HSET".to_string(), key, new_field, value]).await?;
+    Ok(serde_json::json!({ "ok": true }))
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────
@@ -176,6 +218,21 @@ pub async fn set_list_value(conn_id: String, db: i64, key: String, index: i64, v
     Ok(serde_json::json!({ "ok": true }))
 }
 
+/// Search a list for the index of a value using LPOS (Redis 6+). Returns the
+/// matching element + its index.
+#[tauri::command]
+pub async fn search_list_value(conn_id: String, db: i64, key: String, value: String) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    let v = s.query(db, vec!["LPOS".to_string(), key.clone(), value.clone()]).await?;
+    let index = match v {
+        Value::Int(i) => i,
+        _ => -1,
+    };
+    let found = index >= 0;
+    let len = val_to_i64(&s.query(db, vec!["LLEN".to_string(), key]).await?);
+    Ok(serde_json::json!({ "found": found, "index": index, "value": value, "total": len }))
+}
+
 // ─── Set ─────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -192,12 +249,39 @@ pub async fn get_set_items(
     let v = s
         .query(
             db,
-            vec!["SSCAN".to_string(), key, cursor, "COUNT".to_string(), count.to_string()],
+            vec!["SSCAN".to_string(), key.clone(), cursor, "COUNT".to_string(), count.to_string()],
         )
         .await?;
     let (next, members) = parse_scan(&v);
-    let total = members.len() as i64;
+    // SCARD gives the FULL cardinality, not just the current SCAN page.
+    let total = val_to_i64(&s.query(db, vec!["SCARD".to_string(), key]).await?);
     Ok(SetMembersResult { members, cursor: next, total })
+}
+
+/// Search a set for members matching a pattern (SSCAN MATCH). When no wildcard,
+/// uses SISMEMBER for an exact membership check and returns a single hit/no-hit.
+#[tauri::command]
+pub async fn search_set_member(conn_id: String, db: i64, key: String, member: String) -> Result<SetMembersResult, String> {
+    let s = session(&conn_id).await?;
+    let is_pattern = member.contains('*') || member.contains('?') || member.contains('[');
+    if !is_pattern {
+        // Exact: O(1) membership check.
+        let exists = val_to_i64(&s.query(db, vec!["SISMEMBER".to_string(), key.clone(), member.clone()]).await?);
+        let members = if exists == 1 { vec![member] } else { Vec::new() };
+        return Ok(SetMembersResult { members, cursor: 0, total: val_to_i64(&s.query(db, vec!["SCARD".to_string(), key]).await?) });
+    }
+    // Wildcard: SSCAN MATCH until cursor ends.
+    let mut cursor = String::from("0");
+    let mut members = Vec::new();
+    loop {
+        let v = s.query(db, vec!["SSCAN".to_string(), key.clone(), cursor.clone(), "MATCH".to_string(), member.clone(), "COUNT".to_string(), "500".to_string()]).await?;
+        let (next, page) = parse_scan(&v);
+        members.extend(page);
+        cursor = next.to_string();
+        if next == 0 { break; }
+    }
+    let total = val_to_i64(&s.query(db, vec!["SCARD".to_string(), key]).await?);
+    Ok(SetMembersResult { members, cursor: 0, total })
 }
 
 #[tauri::command]
@@ -222,6 +306,15 @@ pub async fn delete_set_item(conn_id: String, db: i64, key: String, members: Vec
     Ok(serde_json::json!({ "removed": val_to_i64(&v) }))
 }
 
+/// Rename a set member: SREM the old value then SADD the new one.
+#[tauri::command]
+pub async fn rename_set_member(conn_id: String, db: i64, key: String, old_member: String, new_member: String) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    s.query(db, vec!["SREM".to_string(), key.clone(), old_member]).await?;
+    s.query(db, vec!["SADD".to_string(), key, new_member]).await?;
+    Ok(serde_json::json!({ "ok": true }))
+}
+
 // ─── ZSet ────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -238,7 +331,7 @@ pub async fn get_zset_items(
     let v = s
         .query(
             db,
-            vec!["ZSCAN".to_string(), key, cursor, "COUNT".to_string(), count.to_string()],
+            vec!["ZSCAN".to_string(), key.clone(), cursor, "COUNT".to_string(), count.to_string()],
         )
         .await?;
     let (next, flat) = parse_scan(&v);
@@ -249,8 +342,61 @@ pub async fn get_zset_items(
             score: c.get(1).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0),
         })
         .collect();
-    let total = items.len() as i64;
+    // ZCARD gives the FULL cardinality, not just the current SCAN page.
+    let total = val_to_i64(&s.query(db, vec!["ZCARD".to_string(), key]).await?);
     Ok(ZSetItemsResult { items, cursor: next, total })
+}
+
+/// Search a sorted set for members matching a pattern (ZSCAN MATCH). Exact query
+/// uses ZSCORE for an O(1) score lookup.
+#[tauri::command]
+pub async fn search_zset_member(conn_id: String, db: i64, key: String, member: String) -> Result<ZSetItemsResult, String> {
+    let s = session(&conn_id).await?;
+    let is_pattern = member.contains('*') || member.contains('?') || member.contains('[');
+    if !is_pattern {
+        let v = s.query(db, vec!["ZSCORE".to_string(), key.clone(), member.clone()]).await?;
+        let score = val_to_string(&v).parse::<f64>().ok();
+        let items = match score {
+            Some(sc) => vec![ZSetItem { member, score: sc }],
+            None => Vec::new(),
+        };
+        return Ok(ZSetItemsResult { items, cursor: 0, total: val_to_i64(&s.query(db, vec!["ZCARD".to_string(), key]).await?) });
+    }
+    let mut cursor = String::from("0");
+    let mut flat = Vec::new();
+    loop {
+        let v = s.query(db, vec!["ZSCAN".to_string(), key.clone(), cursor.clone(), "MATCH".to_string(), member.clone(), "COUNT".to_string(), "500".to_string()]).await?;
+        let (next, page) = parse_scan(&v);
+        flat.extend(page);
+        cursor = next.to_string();
+        if next == 0 { break; }
+    }
+    let items: Vec<ZSetItem> = flat.chunks(2).map(|c| ZSetItem {
+        member: c[0].clone(),
+        score: c.get(1).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0),
+    }).collect();
+    let total = val_to_i64(&s.query(db, vec!["ZCARD".to_string(), key]).await?);
+    Ok(ZSetItemsResult { items, cursor: 0, total })
+}
+
+/// Update a member's score in a sorted set (ZADD).
+#[tauri::command]
+pub async fn update_zset_score(conn_id: String, db: i64, key: String, member: String, score: f64) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    s.query(db, vec!["ZADD".to_string(), key, score.to_string(), member]).await?;
+    Ok(serde_json::json!({ "ok": true }))
+}
+
+/// Rename a zset member (and update its score): ZREM the old member, then ZADD
+/// the new member = score. If the member is unchanged, this is just a ZADD.
+#[tauri::command]
+pub async fn rename_zset_member(conn_id: String, db: i64, key: String, old_member: String, new_member: String, score: f64) -> Result<serde_json::Value, String> {
+    let s = session(&conn_id).await?;
+    if old_member != new_member {
+        s.query(db, vec!["ZREM".to_string(), key.clone(), old_member]).await?;
+    }
+    s.query(db, vec!["ZADD".to_string(), key, score.to_string(), new_member]).await?;
+    Ok(serde_json::json!({ "ok": true }))
 }
 
 #[tauri::command]

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Row, Col, Table, Input, Button, Typography, message } from "antd";
+import { Card, Row, Col, Table, Input, Button, Typography } from "antd";
+import { message } from "../antd-app";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
@@ -138,7 +139,7 @@ export function ConnInfoPanel({ target }: { target: SelectedTarget }) {
           dataSource={filtered}
           loading={loading}
           columns={[
-            { title: "Key", dataIndex: "key", width: 280, render: (k: string) => <Text style={{ fontSize: 11.5, fontFamily: "monospace" }}>{k}</Text> },
+            { title: "Key", dataIndex: "key", width: 280, render: (k: string) => <Text className="mono" style={{ fontSize: 11.5 }}>{k}</Text> },
             { title: "Value", dataIndex: "value", render: (v: string) => <Text style={{ fontSize: 11.5 }}>{v}</Text> },
           ]}
         />

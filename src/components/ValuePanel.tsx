@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Button, Descriptions, Input, Spin, Tooltip, Typography, message } from "antd";
-import { CopyOutlined, CheckOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Button, Descriptions, Dropdown, Input, Spin, Tooltip, Typography, Modal, Space } from "antd";
+import { message, modal } from "../antd-app";
+import { CopyOutlined, CheckOutlined, ReloadOutlined, DeleteOutlined, ClockCircleOutlined, LinkOutlined } from "@ant-design/icons";
 import type { KeyInfo, SelectedTarget } from "../types";
 import { api } from "../api";
 import { formatBytes } from "../utils";
@@ -16,9 +17,11 @@ const { Text } = Typography;
 interface Props {
   target: SelectedTarget;
   currentKey: string;
+  onDelete?: () => void;
+  onMissing?: () => void;
 }
 
-export function ValuePanel({ target, currentKey }: Props) {
+export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
   const { connectionId: connId, db } = target;
   const [meta, setMeta] = useState<KeyInfo | null>(null);
   const [type, setType] = useState<string>("");
@@ -26,13 +29,20 @@ export function ValuePanel({ target, currentKey }: Props) {
   const [ttlEditing, setTtlEditing] = useState(false);
   const [ttlSecs, setTtlSecs] = useState("");
   const [keyHover, setKeyHover] = useState(false);
-  const [reloadTick, setReloadTick] = useState(0);
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
   useEffect(() => {
     setLoading(true);
     api
       .getKeyInfo(connId, db, currentKey)
       .then((info) => {
+        // An expired/removed key shows as TYPE "none" — don't show a dead detail
+        // panel; go back to overview and let the list refresh it away.
+        if (info.type === "none") {
+          message.info(`Key "${currentKey}" no longer exists`);
+          onMissing?.();
+          return;
+        }
         setMeta(info);
         setType(info.type);
       })
@@ -61,26 +71,78 @@ export function ValuePanel({ target, currentKey }: Props) {
   if (loading) return <Spin style={{ margin: 40 }} />;
 
   const refresh = () => {
-    setLoading(true);
+    // Do NOT set `loading` here — that state drives the full-panel <Spin> on first
+    // load, and reusing it would remount the whole detail area (reader sees a
+    // full flash). Refresh only updates metadata and pokes the active viewer to
+    // re-pull its value in place.
     api
       .getKeyInfo(connId, db, currentKey)
       .then((info) => {
+        // Redis reports a missing key as TYPE "none" — surface it and go back to
+        // the overview instead of refreshing a now-dead detail panel.
+        if (info.type === "none") {
+          message.info(`Key "${currentKey}" no longer exists`);
+          onMissing?.();
+          return;
+        }
         setMeta(info);
         setType(info.type);
+        // In-place refresh: bump the signal so the active viewer re-pulls its value
+        // without a full remount.
+        setRefreshSignal((s) => s + 1);
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-    setReloadTick((t) => t + 1);
+      .catch((e) => message.error(String(e)));
+  };
+
+  const confirmDelete = () => {
+    modal.confirm({
+      title: "Delete key",
+      content: `Delete "${currentKey}"? This cannot be undone.`,
+      okText: "Delete",
+      cancelText: "Cancel",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await api.deleteKeys(connId, db, [currentKey]);
+        message.success("deleted");
+        onDelete?.();
+      },
+    });
+  };
+
+  const confirmUnlink = () => {
+    modal.confirm({
+      title: "Unlink key",
+      content: `Unlink "${currentKey}"? Memory is freed asynchronously (non-blocking).`,
+      okText: "Unlink",
+      cancelText: "Cancel",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await api.unlinkKeys(connId, db, [currentKey]);
+        message.success("unlinked");
+        onDelete?.();
+      },
+    });
+  };
+
+  // Large-value types can grow huge; offer async UNLINK (non-blocking) as an
+  // alternative to a synchronous DEL that could stall the Redis event loop.
+  const isLargeType = ["list", "set", "zset"].includes(type);
+
+  const contextMenu = {
+    items: [
+      { key: "copy", label: "Copy key", icon: <CopyOutlined />, onClick: copyKey },
+      { key: "refresh", label: "Refresh", icon: <ReloadOutlined />, onClick: refresh },
+      { key: "ttl", label: "Set TTL", icon: <ClockCircleOutlined />, onClick: () => { setTtlSecs(String(meta ? meta.ttl : "")); setTtlEditing(true); } },
+      { type: "divider" as const },
+      { key: "delete", label: "Delete key", icon: <DeleteOutlined />, danger: true, onClick: confirmDelete },
+    ],
   };
 
   return (
-    <div style={{ padding: 12, height: "100%", overflow: "auto", display: "flex", flexDirection: "column", gap: 12, fontFamily: "SF Mono, Menlo, monospace" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Tooltip title="Refresh">
-          <Button size="small" icon={<ReloadOutlined />} onClick={refresh} />
-        </Tooltip>
-      </div>
-      <Descriptions size="small" column={4} style={{ fontSize: 12 }}>
+    <Dropdown menu={contextMenu} trigger={["contextMenu"]}>
+      <div className="mono" style={{ padding: 12, height: "100%", overflow: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Descriptions size="small" column={4} style={{ fontSize: 12, flex: 1 }}>
         <Descriptions.Item label="Key">
           <span
             onMouseEnter={() => setKeyHover(true)}
@@ -103,7 +165,7 @@ export function ValuePanel({ target, currentKey }: Props) {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <Input
                 size="small"
-                style={{ width: 90 }}
+                style={{ width: 70 }}
                 value={ttlSecs}
                 onChange={(e) => setTtlSecs(e.target.value)}
                 autoFocus
@@ -127,14 +189,29 @@ export function ValuePanel({ target, currentKey }: Props) {
         </Descriptions.Item>
         <Descriptions.Item label="Size">{meta ? formatBytes(meta.size) : "-"}</Descriptions.Item>
       </Descriptions>
+        <Space size={8} style={{ flexShrink: 0 }}>
+          <Tooltip title="Refresh">
+            <Button size="small" icon={<ReloadOutlined />} onClick={refresh} />
+          </Tooltip>
+          <Tooltip title="Delete (DEL)">
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={confirmDelete} />
+          </Tooltip>
+          {isLargeType && (
+            <Tooltip title="Unlink (async, non-blocking)">
+              <Button size="small" danger icon={<LinkOutlined />} onClick={confirmUnlink} />
+            </Tooltip>
+          )}
+        </Space>
+      </div>
 
-      {type === "string" && <StringViewer key={reloadTick} target={target} currentKey={currentKey} />}
-      {type === "hash" && <HashViewer key={reloadTick} target={target} currentKey={currentKey} />}
-      {type === "list" && <ListViewer key={reloadTick} target={target} currentKey={currentKey} />}
-      {type === "set" && <SetViewer key={reloadTick} target={target} currentKey={currentKey} />}
-      {type === "zset" && <ZSetViewer key={reloadTick} target={target} currentKey={currentKey} />}
-      {type === "stream" && <StreamViewer key={reloadTick} target={target} currentKey={currentKey} />}
+      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "hash" && <HashViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "list" && <ListViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "set" && <SetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "zset" && <ZSetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "stream" && <StreamViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
       {type === "ReJSON" && <Text type="secondary">RedisJSON is coming in a later phase</Text>}
-    </div>
+      </div>
+    </Dropdown>
   );
 }

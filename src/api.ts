@@ -37,6 +37,9 @@ export const api = {
   putAppSettings(settings: AppSettings): Promise<{ ok: boolean }> {
     return invoke("put_app_settings", { settings });
   },
+  exportConfig(): Promise<string> {
+    return invoke("export_config");
+  },
 
   // ─── Connections ──────────────────────────────────────────────────────
   listConnections(): Promise<ConnectionSummary[]> {
@@ -99,6 +102,9 @@ export const api = {
   deleteKeys(connId: string, db: number, keys: string[]): Promise<{ deleted: number }> {
     return invoke("delete_keys", { connId, db, keys });
   },
+  unlinkKeys(connId: string, db: number, keys: string[]): Promise<{ deleted: number }> {
+    return invoke("unlink_keys", { connId, db, keys });
+  },
   getSearchHistory(): Promise<string[]> {
     return invoke("get_search_history");
   },
@@ -136,13 +142,22 @@ export const api = {
   setHashField(connId: string, db: number, key: string, field: string, value: string): Promise<{ ok: boolean }> {
     return invoke("set_hash_field", { connId, db, key, field, value });
   },
+  renameHashField(connId: string, db: number, key: string, oldField: string, newField: string, value: string): Promise<{ ok: boolean }> {
+    return invoke("rename_hash_field", { connId, db, key, oldField, newField, value });
+  },
   deleteHashField(connId: string, db: number, key: string, fields: string[]): Promise<{ deleted: number }> {
     return invoke("delete_hash_field", { connId, db, key, fields });
+  },
+  searchHashField(connId: string, db: number, key: string, field: string): Promise<HashFieldsResult> {
+    return invoke("search_hash_field", { connId, db, key, field });
   },
 
   // ─── Values: list ─────────────────────────────────────────────────────
   getListItems(connId: string, db: number, key: string, start: number, stop: number): Promise<ListItemsResult> {
     return invoke("get_list_items", { connId, db, key, start, stop });
+  },
+  searchListValue(connId: string, db: number, key: string, value: string): Promise<{ found: boolean; index: number; value: string; total: number }> {
+    return invoke("search_list_value", { connId, db, key, value });
   },
   pushListItem(connId: string, db: number, key: string, value: string, left: boolean): Promise<{ ok: boolean; length: number }> {
     return invoke("push_list_item", { connId, db, key, value, left });
@@ -163,6 +178,12 @@ export const api = {
   },
   deleteSetItem(connId: string, db: number, key: string, members: string[]): Promise<{ removed: number }> {
     return invoke("delete_set_item", { connId, db, key, members });
+  },
+  searchSetMember(connId: string, db: number, key: string, member: string): Promise<SetMembersResult> {
+    return invoke("search_set_member", { connId, db, key, member });
+  },
+  renameSetMember(connId: string, db: number, key: string, oldMember: string, newMember: string): Promise<{ ok: boolean }> {
+    return invoke("rename_set_member", { connId, db, key, oldMember, newMember });
   },
 
   // ─── Key operations ───────────────────────────────────────────────────
@@ -232,6 +253,15 @@ export const api = {
   },
   deleteZsetItem(connId: string, db: number, key: string, members: string[]): Promise<{ removed: number }> {
     return invoke("delete_zset_item", { connId, db, key, members });
+  },
+  searchZsetMember(connId: string, db: number, key: string, member: string): Promise<ZSetItemsResult> {
+    return invoke("search_zset_member", { connId, db, key, member });
+  },
+  updateZsetScore(connId: string, db: number, key: string, member: string, score: number): Promise<{ ok: boolean }> {
+    return invoke("update_zset_score", { connId, db, key, member, score });
+  },
+  renameZsetMember(connId: string, db: number, key: string, oldMember: string, newMember: string, score: number): Promise<{ ok: boolean }> {
+    return invoke("rename_zset_member", { connId, db, key, oldMember, newMember, score });
   },
 
   // ─── Values: stream ────────────────────────────────────────────────────

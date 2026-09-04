@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Spin, Typography, message } from "antd";
+import { Spin, Typography } from "antd";
+import { message } from "../antd-app";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 
@@ -23,7 +24,7 @@ export function ServerInfoPanel({ target }: { target: SelectedTarget }) {
   return (
     <div style={{ height: "100%", overflow: "auto", padding: 8 }}>
       <Text strong>Server Info</Text>
-      <pre style={{ marginTop: 8, fontSize: 11.5, whiteSpace: "pre-wrap", fontFamily: "SF Mono, Menlo, monospace" }}>
+      <pre className="mono" style={{ marginTop: 8, fontSize: 11.5, whiteSpace: "pre-wrap" }}>
         {info == null ? "(no data)" : typeof info === "string" ? info : JSON.stringify(info, null, 2)}
       </pre>
     </div>

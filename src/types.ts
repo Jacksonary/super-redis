@@ -83,10 +83,12 @@ export interface AppSettings {
   theme: string;
   fontFamily: string;
   fontSize: number;
-  zoomPercent: number;
   language: string;
   defaultDb: number;
   scanCount: number;
+  operateIntervalMs: number;
+  keyDelimiter: string;
+  allowMultiInstance: boolean;
   showSensitive: boolean;
   terminalMaxHistory: number;
 }

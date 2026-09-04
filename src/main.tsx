@@ -21,9 +21,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State
   render() {
     if (this.state.error) {
       return (
-        <div style={{ margin: 24, fontFamily: "monospace" }}>
-          <h3 style={{ color: "#ff4d4f" }}>Super Redis crashed</h3>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{String(this.state.error?.stack || this.state.error)}</pre>
+        <div className="mono crash-page">
+          <h3>Super Redis crashed</h3>
+          <pre>{String(this.state.error?.stack || this.state.error)}</pre>
         </div>
       );
     }

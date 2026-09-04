@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Layout, theme, Typography, ConfigProvider, Tooltip, Button } from "antd";
-import { DatabaseOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { Layout, theme, Typography, ConfigProvider, Tooltip, Button, App as AntApp } from "antd";
+import { DatabaseOutlined, MenuUnfoldOutlined, SettingOutlined } from "@ant-design/icons";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
 import { SettingsModal } from "./components/SettingsModal";
 import { TaskPanel } from "./components/TaskPanel";
-import type { ConnectionSummary, SelectedTarget, Task } from "./types";
+import type { AppSettings, ConnectionSummary, SelectedTarget, Task } from "./types";
 import { api } from "./api";
 import { getLocale, setLocale } from "./i18n";
 import { useRedisEvent } from "./useRedisEvents";
+import AntdAppBridge from "./antd-app";
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -22,11 +23,25 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [zoom, setZoom] = useState(100);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
   const dragging = useRef(false);
   const siderRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Remember the last-selected DB per connection so that switching away and back
+  // keeps the chosen DB (instead of resetting to the connection's default db).
+  const lastDbRef = useRef<Map<string, number>>(new Map());
+
+  const selectConnection = (t: SelectedTarget) => {
+    lastDbRef.current.set(t.connectionId, t.db);
+    setSelected(t);
+  };
+
+  const changeDb = (connId: string, db: number) => {
+    lastDbRef.current.set(connId, db);
+    setSelected({ connectionId: connId, db });
+  };
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -38,6 +53,15 @@ export default function App() {
     setLocale(lang);
     setLocaleState(lang);
   };
+
+  // Persist app settings; keep the in-memory copy in sync.
+  const saveSettings = useCallback((patch: Partial<AppSettings>) => {
+    setAppSettings((prev) => {
+      const next = { ...(prev ?? {}), ...patch } as AppSettings;
+      api.putAppSettings(next).catch(() => {});
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.background = isDark ? "#111213" : "#f0f2f5";
@@ -60,7 +84,7 @@ export default function App() {
   useEffect(() => {
     refreshConnections();
     api.getAppSettings().then((s) => {
-      setZoom(s.zoomPercent);
+      setAppSettings(s);
       if (s.language) changeLocale(s.language);
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,7 +102,7 @@ export default function App() {
     const up = () => {
       dragging.current = false;
       document.body.style.cursor = "";
-      document.body.style.userSelect = "";
+      document.body.classList.remove("dragging");
     };
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
@@ -113,15 +137,27 @@ export default function App() {
   const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
 
   return (
-    <div data-theme={isDark ? "dark" : "light"} style={{ zoom: zoom !== 100 ? zoom / 100 : undefined }}>
+    <div data-theme={isDark ? "dark" : "light"}>
       <ConfigProvider
         theme={{
           algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: isDark ? { colorBgLayout: "#111213" } : { colorBgLayout: "#f0f2f5" },
+          components: {
+            Segmented: {
+              // Selected segment uses a semi-transparent primary blue so it stands
+              // out in both themes while letting the layout background show through,
+              // instead of a hard solid that fights the theme. Driven via the token
+              // so antd's own CSS-in-JS can't overwrite it.
+              itemSelectedBg: isDark ? "rgba(76, 155, 250, 0.28)" : "rgba(22, 119, 255, 0.18)",
+              itemSelectedColor: isDark ? "rgba(255, 255, 255, 0.92)" : "#1677ff",
+            },
+          },
         }}
       >
-        <Layout
-          style={{ minHeight: "100vh" }}
+        <AntApp>
+          <AntdAppBridge />
+          <Layout
+            style={{ minHeight: "100vh" }}
           onContextMenu={(e) => {
             const tag = (e.target as HTMLElement)?.tagName;
             if (tag !== "INPUT" && tag !== "TEXTAREA") e.preventDefault();
@@ -143,18 +179,25 @@ export default function App() {
           >
             {collapsed ? (
               <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", gap: 8 }}>
+                <Tooltip title="Settings">
+                  <Button icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)} />
+                </Tooltip>
+                <div style={{ flex: 1 }} />
                 <Tooltip title="Expand sidebar">
                   <Button icon={<MenuUnfoldOutlined />} onClick={() => setCollapsed(false)} />
                 </Tooltip>
-                <div style={{ flex: 1 }} />
               </div>
             ) : (
               <Sidebar
                 connections={connections}
                 selected={selected}
-                onSelect={setSelected}
+                onSelect={(t) => {
+                  if (!t) return setSelected(null);
+                  // Prefer the remembered DB for this connection, if any.
+                  const remembered = lastDbRef.current.get(t.connectionId);
+                  selectConnection(remembered !== undefined ? { ...t, db: remembered } : t);
+                }}
                 isDark={isDark}
-                onThemeToggle={toggleTheme}
                 locale={locale}
                 onLocaleChange={changeLocale}
                 onConnectionsChange={refreshConnections}
@@ -166,7 +209,7 @@ export default function App() {
               onMouseDown={() => {
                 dragging.current = true;
                 document.body.style.cursor = "col-resize";
-                document.body.style.userSelect = "none";
+                document.body.classList.add("dragging");
               }}
               style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 10 }}
             />
@@ -178,8 +221,10 @@ export default function App() {
                 <Workspace
                   key={`${selected.connectionId}-${selected.db}`}
                   target={selected}
+                  connectionName={connections.find((c) => c.id === selected.connectionId)?.name ?? ""}
+                  delimiter={appSettings?.keyDelimiter ?? ":"}
                   isDark={isDark}
-                  onDbChange={(db) => setSelected({ connectionId: selected.connectionId, db })}
+                  onDbChange={(db) => changeDb(selected.connectionId, db)}
                 />
               ) : (
                 <div className="empty-state-wrap" style={{ height: "100vh", justifyContent: "center" }}>
@@ -196,20 +241,17 @@ export default function App() {
           <TaskPanel tasks={tasks} onDismiss={(id) => setTasks((p) => p.filter((t) => t.id !== id))} />
         </Layout>
 
-        <SettingsModal
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          isDark={isDark}
-          onThemeToggle={toggleTheme}
-          locale={locale}
-          zoom={zoom}
-          setZoom={(z) => {
-            setZoom(z);
-            api.getAppSettings().then((s) =>
-              api.putAppSettings({ ...s, theme: isDark ? "dark" : "light", zoomPercent: z, language: locale }).catch(() => {})
-            );
-          }}
-        />
+          <SettingsModal
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            isDark={isDark}
+            onThemeToggle={toggleTheme}
+            locale={locale}
+            settings={appSettings}
+            saveSettings={saveSettings}
+            onRefreshConnections={refreshConnections}
+          />
+        </AntApp>
       </ConfigProvider>
     </div>
   );

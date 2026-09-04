@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Tooltip, Typography, Select, message } from "antd";
+import { Button, Input, Tooltip, Typography, Select } from "antd";
+import { message } from "../antd-app";
 import { CopyOutlined } from "@ant-design/icons";
 
 const { TextArea } = Input;
@@ -12,9 +13,10 @@ const FORMATS = ["text", "json", "hex", "base64", "gzip", "deflate", "brotli", "
 interface Props {
   target: SelectedTarget;
   currentKey: string;
+  refreshSignal?: number;
 }
 
-export function StringViewer({ target, currentKey }: Props) {
+export function StringViewer({ target, currentKey, refreshSignal }: Props) {
   const { connectionId: connId, db } = target;
   const [value, setValue] = useState("");
   const [binary, setBinary] = useState(false);
@@ -34,7 +36,7 @@ export function StringViewer({ target, currentKey }: Props) {
       .catch((e) => message.error(String(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connId, db, currentKey]);
+  }, [connId, db, currentKey, refreshSignal]);
 
   // Fetch the decoded/prettified text when a non-text format is selected.
   useEffect(() => {
@@ -60,7 +62,8 @@ export function StringViewer({ target, currentKey }: Props) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <TextArea
-          style={{ height: "100%", resize: "none", fontFamily: "SF Mono, Menlo, monospace", fontSize: 12.5 }}
+          className="mono"
+          style={{ height: "100%", resize: "none", fontSize: 12.5 }}
           value={shown}
           onChange={(e) => editable && setValue(e.target.value)}
           disabled={loading || !editable}

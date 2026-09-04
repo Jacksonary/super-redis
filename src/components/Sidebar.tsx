@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, Progress, theme, message } from "antd";
+import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, Progress, theme } from "antd";
+import { message, modal } from "../antd-app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useUpdateCheck } from "../useUpdateCheck";
 import {
@@ -14,8 +15,7 @@ import {
   LinkOutlined,
   DisconnectOutlined,
   MenuFoldOutlined,
-  SunOutlined,
-  MoonOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import type { ConnectionSummary, SelectedTarget } from "../types";
 import { api } from "../api";
@@ -29,7 +29,6 @@ interface Props {
   selected: SelectedTarget | null;
   onSelect: (t: SelectedTarget | null) => void;
   isDark: boolean;
-  onThemeToggle: () => void;
   locale: string;
   onLocaleChange: (l: string) => void;
   onConnectionsChange: () => void;
@@ -54,7 +53,7 @@ export function Sidebar(props: Props) {
   function showRestartModal(version: string) {
     if (modalOpenRef.current) return;
     modalOpenRef.current = true;
-    Modal.confirm({
+    modal.confirm({
       title: "Update ready",
       content: `Version ${version} has been downloaded. Restart now to apply it, or later.`,
       okText: "Restart now",
@@ -206,11 +205,8 @@ export function Sidebar(props: Props) {
           {props.locale === "zh-CN" ? "Connections" : "Connections"}
         </Text>
         <Space size={4}>
-          <Tooltip title={props.isDark ? "Light theme" : "Dark theme"}>
-            <Button size="small" icon={props.isDark ? <SunOutlined /> : <MoonOutlined />} onClick={props.onThemeToggle} />
-          </Tooltip>
-          <Tooltip title="Collapse sidebar">
-            <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
+          <Tooltip title="Settings">
+            <Button size="small" icon={<SettingOutlined />} onClick={props.onOpenSettings} />
           </Tooltip>
         </Space>
       </div>
@@ -256,12 +252,12 @@ export function Sidebar(props: Props) {
                             borderRadius: "50%",
                             background:
                               status[conn.id] === "ok"
-                                ? "#52c41a"
+                                ? token.colorSuccess
                                 : status[conn.id] === "error"
-                                ? "#ff4d4f"
+                                ? token.colorError
                                 : status[conn.id] === "disconnected"
-                                ? "#8c8c8c"
-                                : conn.color ?? "#4C9BFA",
+                                ? token.colorTextTertiary
+                                : conn.color ?? token.colorPrimary,
                             marginRight: 8,
                             flexShrink: 0,
                           }}
@@ -294,6 +290,13 @@ export function Sidebar(props: Props) {
             Add connection
           </Button>
         </div>
+      </div>
+
+      {/* Collapse control, its own row just above the footer */}
+      <div style={{ padding: "0 12px", display: "flex", justifyContent: "flex-end" }}>
+        <Tooltip title="Collapse sidebar">
+          <Button size="small" type="text" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
+        </Tooltip>
       </div>
 
       <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
@@ -329,8 +332,9 @@ export function Sidebar(props: Props) {
               <Tooltip title="Check for updates">
                 <ReloadOutlined
                   spin={checking}
-                  style={{ fontSize: 11, opacity: 0.6, cursor: "pointer" }}
+                  style={{ fontSize: 11, color: token.colorTextQuaternary, cursor: "pointer" }}
                   onClick={async () => {
+                    if (checking) return;
                     const result = await recheck();
                     if (result === "up-to-date") message.info("Already up to date");
                     else if (result === "error") message.error("Failed to check for updates");
