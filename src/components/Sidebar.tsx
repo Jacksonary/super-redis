@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
-import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, message } from "antd";
+import { useMemo, useRef, useState } from "react";
+import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, Progress, message } from "antd";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { useUpdateCheck } from "../useUpdateCheck";
 import {
   PlusOutlined,
   GithubOutlined,
+  ReloadOutlined,
   ApiOutlined,
   EditOutlined,
   CopyOutlined,
@@ -41,6 +44,64 @@ export function Sidebar(props: Props) {
   const [editing, setEditing] = useState<ConnectionSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConnectionSummary | null>(null);
   const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
+  const { state: updateState, setState: setUpdateState, checking, recheck } = useUpdateCheck(__APP_VERSION__);
+  const modalOpenRef = useRef(false);
+  const downloadingRef = useRef(false);
+  const pendingUpdateRef = useRef<{ install: () => Promise<void> } | null>(null);
+  const readyVersionRef = useRef<string>("");
+
+  function showRestartModal(version: string) {
+    if (modalOpenRef.current) return;
+    modalOpenRef.current = true;
+    Modal.confirm({
+      title: "Update ready",
+      content: `Version ${version} has been downloaded. Restart now to apply it, or later.`,
+      okText: "Restart now",
+      cancelText: "Later",
+      onOk: async () => {
+        modalOpenRef.current = false;
+        if (pendingUpdateRef.current) {
+          try {
+            await pendingUpdateRef.current.install();
+          } catch (e) {
+            void message.error(`Install failed: ${String(e)}`);
+            return;
+          }
+        }
+        void relaunch();
+      },
+      onCancel: () => {
+        modalOpenRef.current = false;
+      },
+    });
+  }
+
+  const handleUpdate = async () => {
+    if (updateState.status !== "available" || downloadingRef.current) return;
+    downloadingRef.current = true;
+    const upd = updateState.update;
+    const version = updateState.version;
+    pendingUpdateRef.current = upd;
+    let total = 0;
+    let downloaded = 0;
+    setUpdateState({ status: "downloading", progress: 0 });
+    try {
+      await upd.download((evt) => {
+        if (evt.event === "Started" && evt.data.contentLength) total = evt.data.contentLength;
+        else if (evt.event === "Progress") {
+          downloaded += evt.data.chunkLength;
+          if (total > 0) setUpdateState({ status: "downloading", progress: Math.round((downloaded / total) * 100) });
+        }
+      });
+      readyVersionRef.current = version;
+      setUpdateState({ status: "ready" });
+      showRestartModal(version);
+    } catch (e) {
+      setUpdateState({ status: "error", message: String(e) });
+    } finally {
+      downloadingRef.current = false;
+    }
+  };
 
   const groups = useMemo(() => {
     const map = new Map<string | null, ConnectionSummary[]>();
@@ -227,9 +288,49 @@ export function Sidebar(props: Props) {
       </div>
 
       <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
-        <Text type="secondary" style={{ fontSize: 11, flex: 1 }}>
-          Super Redis <span style={{ opacity: 0.7 }}>v{__APP_VERSION__}</span>
-        </Text>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {updateState.status === "available" ? (
+            <Tooltip title={`v${updateState.version} available — click to update`}>
+              <Button size="small" type="link" style={{ padding: 0, height: "auto" }} onClick={handleUpdate}>
+                v{__APP_VERSION__} → v{updateState.version}
+              </Button>
+            </Tooltip>
+          ) : updateState.status === "downloading" ? (
+            <div>
+              <Text style={{ fontSize: 11, opacity: 0.8 }}>Downloading... {updateState.progress}%</Text>
+              <Progress percent={updateState.progress} size="small" showInfo={false} />
+            </div>
+          ) : updateState.status === "ready" ? (
+            <Tooltip title="Restart to apply">
+              <Button size="small" type="link" style={{ padding: 0, height: "auto" }} onClick={() => showRestartModal(readyVersionRef.current)}>
+                Update ready — restart
+              </Button>
+            </Tooltip>
+          ) : updateState.status === "error" ? (
+            <Tooltip title={updateState.message}>
+              <Button size="small" type="link" style={{ padding: 0, height: "auto" }} onClick={() => recheck()}>
+                Update failed — retry
+              </Button>
+            </Tooltip>
+          ) : (
+            <Space size={4}>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                Super Redis <span style={{ opacity: 0.7 }}>v{__APP_VERSION__}</span>
+              </Text>
+              <Tooltip title="Check for updates">
+                <ReloadOutlined
+                  spin={checking}
+                  style={{ fontSize: 11, opacity: 0.6, cursor: "pointer" }}
+                  onClick={async () => {
+                    const result = await recheck();
+                    if (result === "up-to-date") message.info("Already up to date");
+                    else if (result === "error") message.error("Failed to check for updates");
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          )}
+        </div>
         <Tooltip title="GitHub repository">
           <a
             role="link"
