@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, Progress, message } from "antd";
+import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, Progress, theme, message } from "antd";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useUpdateCheck } from "../useUpdateCheck";
 import {
@@ -40,6 +40,7 @@ interface Props {
 export function Sidebar(props: Props) {
   const { connections, selected, onSelect, onConnectionsChange } = props;
   const borderColor = props.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
+  const { token } = theme.useToken();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ConnectionSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConnectionSummary | null>(null);
@@ -204,6 +205,14 @@ export function Sidebar(props: Props) {
         <Text strong style={{ fontSize: 14 }}>
           {props.locale === "zh-CN" ? "Connections" : "Connections"}
         </Text>
+        <Space size={4}>
+          <Tooltip title={props.isDark ? "Light theme" : "Dark theme"}>
+            <Button size="small" icon={props.isDark ? <SunOutlined /> : <MoonOutlined />} onClick={props.onThemeToggle} />
+          </Tooltip>
+          <Tooltip title="Collapse sidebar">
+            <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
+          </Tooltip>
+        </Space>
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "0 6px" }}>
@@ -315,7 +324,7 @@ export function Sidebar(props: Props) {
           ) : (
             <Space size={4}>
               <Text type="secondary" style={{ fontSize: 11 }}>
-                Super Redis <span style={{ opacity: 0.7 }}>v{__APP_VERSION__}</span>
+                v{__APP_VERSION__}
               </Text>
               <Tooltip title="Check for updates">
                 <ReloadOutlined
@@ -338,7 +347,7 @@ export function Sidebar(props: Props) {
             aria-label="GitHub repository"
             onClick={() => openUrl("https://github.com/Jacksonary/super-redis")}
             onKeyDown={(e) => e.key === "Enter" && openUrl("https://github.com/Jacksonary/super-redis")}
-            style={{ color: "inherit", cursor: "pointer", display: "inline-flex" }}
+            style={{ color: token.colorTextQuaternary, cursor: "pointer", display: "inline-flex" }}
           >
             <GithubOutlined style={{ fontSize: 14 }} />
           </a>
@@ -350,18 +359,12 @@ export function Sidebar(props: Props) {
             aria-label="Gitee repository"
             onClick={() => openUrl("https://gitee.com/weiguoliu/super-redis")}
             onKeyDown={(e) => e.key === "Enter" && openUrl("https://gitee.com/weiguoliu/super-redis")}
-            style={{ color: "inherit", cursor: "pointer", display: "inline-flex" }}
+            style={{ color: token.colorTextQuaternary, cursor: "pointer", display: "inline-flex" }}
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
               <path d="M11.984 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.016 0zm6.09 5.333c.328 0 .593.26.593.593v1.482a.594.594 0 0 1-.593.592H9.777c-.982 0-1.778.796-1.778 1.778v5.63c0 .327.26.593.593.593h5.63c.982 0 1.778-.796 1.778-1.778v-.296a.593.593 0 0 0-.592-.593h-4.15a.592.592 0 0 1-.592-.592v-1.482a.593.593 0 0 1 .593-.592h6.815c.327 0 .593.265.593.592v3.408a4 4 0 0 1-4 4H5.926a.593.593 0 0 1-.593-.593V9.778a4.444 4.444 0 0 1 4.445-4.444h8.296Z" />
             </svg>
           </a>
-        </Tooltip>
-        <Tooltip title={props.isDark ? "Light theme" : "Dark theme"}>
-          <Button size="small" icon={props.isDark ? <SunOutlined /> : <MoonOutlined />} onClick={props.onThemeToggle} />
-        </Tooltip>
-        <Tooltip title="Collapse sidebar">
-          <Button size="small" icon={<MenuFoldOutlined />} onClick={props.onCollapse} />
         </Tooltip>
       </div>
 
