@@ -142,11 +142,11 @@ export default function App() {
             }}
           >
             {collapsed ? (
-              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0" }}>
-                <div style={{ flex: 1 }} />
+              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", gap: 8 }}>
                 <Tooltip title="Expand sidebar">
                   <Button icon={<MenuUnfoldOutlined />} onClick={() => setCollapsed(false)} />
                 </Tooltip>
+                <div style={{ flex: 1 }} />
               </div>
             ) : (
               <Sidebar
