@@ -222,7 +222,16 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal }: Pro
         />
         <Segmented
           value={view}
-          onChange={(v) => setView(v as "flat" | "tree")}
+          onChange={(v) => {
+            setView(v as "flat" | "tree");
+            // Flat list and folder tree are different structural views; switching
+            // resets batch selection and the open key/folder so each view starts
+            // clean (avoids cross-view selection ambiguity).
+            setSelectedRowKeys([]);
+            setActiveKey(null);
+            setActiveFolder(null);
+            onSelectKey("");
+          }}
           options={[
             { value: "flat", label: "Flat", icon: <UnorderedListOutlined /> },
             { value: "tree", label: "Tree", icon: <ApartmentOutlined /> },
@@ -272,7 +281,14 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal }: Pro
             pagination={false}
             rowSelection={{ columnWidth: 40, selectedRowKeys, onChange: (k) => setSelectedRowKeys(k as string[]) }}
             onRow={(record) => ({
-              onClick: () => selectKey(record),
+              onClick: (e) => {
+                // antd fires the row onClick even when the selection checkbox is
+                // clicked (known bug #38926). Ignore clicks landing on the
+                // selection column / checkbox so checking a box never opens the
+                // key detail — only plain row-body clicks do.
+                if ((e.target as HTMLElement).closest(".ant-table-selection-column, .ant-checkbox")) return;
+                selectKey(record);
+              },
             })}
             rowClassName={(r) => (r === activeKey ? "ant-table-row-selected" : "")}
             scroll={{ y: fillH }}

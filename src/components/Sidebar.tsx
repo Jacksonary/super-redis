@@ -16,6 +16,7 @@ import {
   DisconnectOutlined,
   MenuFoldOutlined,
   SettingOutlined,
+  FolderOutlined,
 } from "@ant-design/icons";
 import type { ConnectionSummary, SelectedTarget } from "../types";
 import { api } from "../api";
@@ -43,6 +44,10 @@ export function Sidebar(props: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ConnectionSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ConnectionSummary | null>(null);
+  // Groups (named, non-null) the user has collapsed. Empty set = all expanded.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Id of the connection currently being dragged, or null when idle.
+  const [dragConnId, setDragConnId] = useState<string | null>(null);
   const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
   const { state: updateState, setState: setUpdateState, checking, recheck } = useUpdateCheck(__APP_VERSION__);
   const modalOpenRef = useRef(false);
@@ -112,6 +117,30 @@ export function Sidebar(props: Props) {
     }
     return [...map.entries()];
   }, [connections]);
+
+  const toggleGroup = (gid: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(gid)) next.delete(gid);
+      else next.add(gid);
+      return next;
+    });
+  };
+
+  // Drop target callback: move the dragged connection into `gid` (a group name)
+  // or out of any group when `gid` is null.
+  const dropToGroup = async (gid: string | null) => {
+    try {
+      const conn = connections.find((c) => c.id === dragConnId);
+      if (!conn || conn.group === gid) return;
+      await api.setConnectionGroup(conn.id, gid);
+      onConnectionsChange();
+    } catch (e) {
+      message.error(`Move to group failed: ${String(e)}`);
+    } finally {
+      setDragConnId(null);
+    }
+  };
 
   const refreshStatus = async (connId: string) => {
     try {
@@ -211,7 +240,17 @@ export function Sidebar(props: Props) {
         </Space>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", padding: "0 6px" }}>
+      <div
+        style={{ flex: 1, overflow: "auto", padding: "0 6px" }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          void dropToGroup(null);
+        }}
+      >
         {groups.length === 0 && (
           <div style={{ padding: 16, textAlign: "center", opacity: 0.5 }}>
             <Text type="secondary">{props.locale === "zh-CN" ? "No connections yet" : "No connections yet"}</Text>
@@ -219,68 +258,111 @@ export function Sidebar(props: Props) {
         )}
         <List
           dataSource={groups}
-          renderItem={([gid, conns]) => (
-            <div key={gid ?? "root"}>
-              {gid && (
-                <Text type="secondary" style={{ display: "block", padding: "6px 12px 2px", fontSize: 12 }}>
-                  {gid}
-                </Text>
-              )}
-              {conns.map((conn) => {
-                const active = selected?.connectionId === conn.id;
-                return (
-                  <div key={conn.id} style={{ margin: "2px 0" }}>
-                    <Dropdown trigger={["contextMenu"]} menu={{ items: rowMenu(conn) }}>
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectConnection(conn, conn.db);
-                        }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          cursor: "pointer",
-                          // Row tinted by the connection color so connections are
-                          // visually distinguishable; selected row is stronger.
-                          background: active
-                            ? (conn.color ? `${conn.color}38` : "rgba(22,119,255,0.12)")
-                            : conn.color
-                            ? `${conn.color}18`
-                            : "transparent",
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 9,
-                            height: 9,
-                            borderRadius: "50%",
-                            // Connection health: restored to the leading position.
-                            background:
-                              status[conn.id] === "ok"
-                                ? token.colorSuccess
-                                : status[conn.id] === "error"
-                                ? token.colorError
-                                : token.colorTextTertiary,
-                            marginRight: 8,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Text style={{ fontSize: 13, flex: 1 }} ellipsis>
-                          {conn.name}
-                          {conn.readonly ? <ReadOutlined style={{ marginLeft: 4, fontSize: 11 }} /> : null}
-                        </Text>
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                          {conn.db}
-                        </Text>
-                      </div>
-                    </Dropdown>
+          renderItem={([gid, conns]) => {
+            const collapsed = gid != null && collapsedGroups.has(gid);
+            return (
+              <div key={gid ?? "root"}>
+                {gid && (
+                  <div
+                    onClick={() => toggleGroup(gid)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void dropToGroup(gid);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "5px 10px 3px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      color: token.colorTextSecondary,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <FolderOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
+                    <Text type="secondary" style={{ fontSize: 12, flex: 1 }} ellipsis>
+                      {gid}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {conns.length}
+                    </Text>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+                {!collapsed &&
+                  conns.map((conn) => {
+                    const active = selected?.connectionId === conn.id;
+                    return (
+                      <div
+                        key={conn.id}
+                        draggable
+                        onDragStart={(e) => {
+                          // WebKit (macOS/Linux tauri webview) only enters a real
+                          // drop sequence if dragstart sets dataTransfer data.
+                          e.dataTransfer.setData("text/plain", conn.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          setDragConnId(conn.id);
+                        }}
+                        onDragEnd={() => setDragConnId(null)}
+                        style={{ margin: "2px 0", ...(gid != null ? { paddingLeft: 18 } : {}) }}
+                      >
+                        <Dropdown trigger={["contextMenu"]} menu={{ items: rowMenu(conn) }}>
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectConnection(conn, conn.db);
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              padding: "6px 10px",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              // Row tinted by the connection color so connections are
+                              // visually distinguishable; selected row is stronger.
+                              background: active
+                                ? (conn.color ? `${conn.color}38` : "rgba(22,119,255,0.12)")
+                                : conn.color
+                                ? `${conn.color}18`
+                                : "transparent",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 9,
+                                height: 9,
+                                borderRadius: "50%",
+                                // Connection health: restored to the leading position.
+                                background:
+                                  status[conn.id] === "ok"
+                                    ? token.colorSuccess
+                                    : status[conn.id] === "error"
+                                    ? token.colorError
+                                    : token.colorTextTertiary,
+                                marginRight: 8,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <Text style={{ fontSize: 13, flex: 1 }} ellipsis>
+                              {conn.name}
+                              {conn.readonly ? <ReadOutlined style={{ marginLeft: 4, fontSize: 11 }} /> : null}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              {conn.db}
+                            </Text>
+                          </div>
+                        </Dropdown>
+                      </div>
+                    );
+                  })}
+              </div>
+            );
+          }}
         />
         <div style={{ padding: "8px 12px" }}>
           <Button

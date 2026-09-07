@@ -52,6 +52,7 @@ pub fn run() {
             commands::connections::update_connection,
             commands::connections::clone_connection,
             commands::connections::delete_connection,
+            commands::connections::set_connection_group,
             commands::connections::test_connection,
             commands::connections::select_database,
             commands::connections::set_readonly,

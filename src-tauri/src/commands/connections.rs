@@ -89,6 +89,22 @@ pub async fn delete_connection(conn_id: String) -> Result<serde_json::Value, Str
     Ok(serde_json::json!({ "ok": true }))
 }
 
+/// Set just the group of a connection (used by drag-and-drop in the sidebar).
+/// Only touches the group field, never other fields or secrets.
+#[tauri::command]
+pub fn set_connection_group(conn_id: String, group: Option<String>) -> Result<serde_json::Value, String> {
+    let mut cfg = redisclient::load_config_with_ids()?;
+    let conn = cfg
+        .connections
+        .iter_mut()
+        .find(|c| c.id.as_deref() == Some(conn_id.as_str()))
+        .ok_or("Connection not found")?;
+    conn.group = group;
+    redisclient::save_config(&cfg)?;
+    redisclient::invalidate_session_cache();
+    Ok(serde_json::json!({ "ok": true }))
+}
+
 #[tauri::command]
 pub async fn test_connection(conn_id: String, app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let result = redisclient::test_session(&conn_id).await;

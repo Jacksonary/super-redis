@@ -60,6 +60,9 @@ export const api = {
   deleteConnection(connId: string): Promise<{ ok: boolean }> {
     return invoke("delete_connection", { connId });
   },
+  setConnectionGroup(connId: string, group: string | null): Promise<{ ok: boolean }> {
+    return invoke("set_connection_group", { connId, group: group ?? null });
+  },
   testConnection(connId: string): Promise<{ ok: boolean }> {
     return invoke("test_connection", { connId });
   },
