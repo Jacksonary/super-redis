@@ -242,7 +242,13 @@ export function Sidebar(props: Props) {
                           padding: "6px 10px",
                           borderRadius: 6,
                           cursor: "pointer",
-                          background: active ? "rgba(22,119,255,0.12)" : "transparent",
+                          // Row tinted by the connection color so connections are
+                          // visually distinguishable; selected row is stronger.
+                          background: active
+                            ? (conn.color ? `${conn.color}38` : "rgba(22,119,255,0.12)")
+                            : conn.color
+                            ? `${conn.color}18`
+                            : "transparent",
                         }}
                       >
                         <span
@@ -250,14 +256,13 @@ export function Sidebar(props: Props) {
                             width: 9,
                             height: 9,
                             borderRadius: "50%",
+                            // Connection health: restored to the leading position.
                             background:
                               status[conn.id] === "ok"
                                 ? token.colorSuccess
                                 : status[conn.id] === "error"
                                 ? token.colorError
-                                : status[conn.id] === "disconnected"
-                                ? token.colorTextTertiary
-                                : conn.color ?? token.colorPrimary,
+                                : token.colorTextTertiary,
                             marginRight: 8,
                             flexShrink: 0,
                           }}

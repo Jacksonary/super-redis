@@ -167,6 +167,65 @@ body,
   margin-bottom: 12px;
 }
 
+/* Connection form: the "Advanced options" ghost collapse must align flush-left
+   with SSL/TLS — ghost removes the border, but NOT the header's left padding and
+   the expand-icon column. Zero out both so the header text sits at the left edge. */
+.conn-form .conn-advanced .ant-collapse-header {
+  padding-inline-start: 0 !important;
+  padding-inline-end: 0 !important;
+  padding-left: 0 !important;
+}
+.conn-form .conn-advanced .ant-collapse-header .ant-collapse-expand-icon {
+  padding-inline-start: 0 !important;
+  margin-inline-end: 0 !important;
+}
+.conn-form .conn-advanced .ant-collapse-content-box {
+  padding-inline-start: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* Connection form (create/edit): refine input styling locally so the fields read
+   as a cohesive form rather than default controls. Darken the field surface, drop
+   the heavy border, and highlight a primary border on focus. Scoped to `.conn-form`
+   so this does NOT affect other inputs in the app. */
+.conn-form .ant-input,
+.conn-form .ant-input-affix-wrapper,
+.conn-form .ant-input-number,
+.conn-form .ant-select-selector {
+  background: transparent !important;
+  border-color: rgba(128, 128, 128, 0.28) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .conn-form .ant-input,
+[data-theme="dark"] .conn-form .ant-input-affix-wrapper,
+[data-theme="dark"] .conn-form .ant-input-number,
+[data-theme="dark"] .conn-form .ant-select-selector {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+.conn-form .ant-input:hover,
+.conn-form .ant-input-affix-wrapper:hover,
+.conn-form .ant-input-number:hover,
+.conn-form .ant-select-selector:hover {
+  border-color: rgba(22, 119, 255, 0.5) !important;
+}
+.conn-form .ant-input:focus,
+.conn-form .ant-input-focused,
+.conn-form .ant-input-affix-wrapper-focused,
+.conn-form .ant-input-number-focused,
+.conn-form .ant-select-focused .ant-select-selector {
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2) !important;
+}
+
+/* Center the selected label content (the color dot) vertically inside the Select.
+   The custom labelRender content sits in `.ant-select-selection-item`, which by
+   default aligns by text baseline — making it flex-centered keeps the dot flush. */
+.conn-form .ant-select-selection-item {
+  display: flex !important;
+  align-items: center !important;
+  line-height: normal !important;
+}
+
 /* Nested cascade group (Batch operation → Size → Interval): tighter spacing so
    the sub-rows read as one unit, and only the label text is indented (controls
    still left-align with other rows). */

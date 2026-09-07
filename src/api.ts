@@ -40,6 +40,9 @@ export const api = {
   exportConfig(): Promise<string> {
     return invoke("export_config");
   },
+  importConfig(connections: Connection[]): Promise<{ added: number; skipped: number }> {
+    return invoke("import_config", { imported: connections });
+  },
 
   // ─── Connections ──────────────────────────────────────────────────────
   listConnections(): Promise<ConnectionSummary[]> {

@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { Modal, Form, Switch, Typography, Select, Input, Button, Space, InputNumber } from "antd";
+import { Modal, Form, Switch, Typography, Select, Button, Space, InputNumber } from "antd";
+import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { open as dialogOpen, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { message } from "../antd-app";
-import { CopyOutlined, DownloadOutlined, UploadOutlined } from "@ant-design/icons";
 import type { AppSettings } from "../types";
 import { api } from "../api";
 
 const { Text } = Typography;
-const { TextArea } = Input;
 
 // Common key delimiters for folder grouping.
 const DELIMITERS = [
@@ -29,16 +29,17 @@ interface Props {
 }
 
 export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, settings, saveSettings, onRefreshConnections }: Props) {
-  const [exportText, setExportText] = useState("");
-  const [exportOpen, setExportOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importText, setImportText] = useState("");
-
   const doExport = async () => {
     try {
+      const path = await save({
+        defaultPath: "super-redis-connections.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        title: "Export connections",
+      });
+      if (!path) return; // user cancelled
       const json = await api.exportConfig();
-      setExportText(json);
-      setExportOpen(true);
+      await writeTextFile(path, json);
+      message.success("exported");
     } catch (e) {
       message.error(String(e));
     }
@@ -46,21 +47,22 @@ export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, se
 
   const doImport = async () => {
     try {
-      const parsed = JSON.parse(importText);
+      const path = await dialogOpen({
+        multiple: false,
+        directory: false,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        title: "Import connections",
+      });
+      if (!path) return; // user cancelled
+      const text = await readTextFile(path as string);
+      const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) throw new Error("Expected a JSON array of connections");
-      await api.putConfig(parsed);
-      message.success("imported");
-      setImportOpen(false);
-      setImportText("");
+      const res = await api.importConfig(parsed);
+      message.success(`imported ${res.added}, skipped ${res.skipped} existing`);
       onRefreshConnections();
     } catch (e) {
       message.error(`Import failed: ${String(e)}`);
     }
-  };
-
-  const copyExport = async () => {
-    await navigator.clipboard.writeText(exportText);
-    message.success("copied");
   };
 
   return (
@@ -116,7 +118,7 @@ export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, se
             <Button size="small" icon={<DownloadOutlined />} onClick={doExport}>
               Export
             </Button>
-            <Button size="small" icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
+            <Button size="small" icon={<UploadOutlined />} onClick={doImport}>
               Import
             </Button>
           </Space>
@@ -127,42 +129,6 @@ export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, se
         </Text>
       </Form>
 
-      {/* Export result */}
-      <Modal
-        open={exportOpen}
-        onCancel={() => setExportOpen(false)}
-        footer={
-          <Space>
-            <Button icon={<CopyOutlined />} onClick={copyExport}>
-              Copy
-            </Button>
-            <Button onClick={() => setExportOpen(false)}>Close</Button>
-          </Space>
-        }
-        width={520}
-        title="Export configuration"
-      >
-        <TextArea value={exportText} readOnly rows={12} style={{ fontFamily: "monospace", fontSize: 12 }} />
-      </Modal>
-
-      {/* Import input */}
-      <Modal
-        open={importOpen}
-        onCancel={() => setImportOpen(false)}
-        onOk={doImport}
-        okText="Import"
-        cancelText="Cancel"
-        width={520}
-        title="Import configuration"
-      >
-        <TextArea
-          value={importText}
-          onChange={(e) => setImportText(e.target.value)}
-          rows={12}
-          placeholder='Paste exported JSON, e.g. [{"name": ...}]'
-          style={{ fontFamily: "monospace", fontSize: 12 }}
-        />
-      </Modal>
     </Modal>
   );
 }

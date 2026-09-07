@@ -1,17 +1,6 @@
 use crate::redisclient;
 use crate::types::{Connection, ConnectionGroup};
 
-/// Strip secrets (passwords) from a connection so it can be exported safely.
-/// Passwords live in the OS keyring; they are never written to config.json and
-/// must not be included in an export. The user re-enters them on import.
-fn strip_secrets(mut c: Connection) -> Connection {
-    c.acl.password.clear();
-    c.tls.key_passphrase.clear();
-    c.sentinel.password.clear();
-    c.ssh.password.clear();
-    c
-}
-
 /// Return all saved connections (with secrets hydrated from the keyring).
 #[tauri::command]
 pub fn get_config() -> Result<Vec<Connection>, String> {
@@ -28,14 +17,42 @@ pub fn put_config(connections: Vec<Connection>) -> Result<serde_json::Value, Str
     Ok(serde_json::json!({ "ok": true }))
 }
 
-/// Export all connections with secrets stripped, as a JSON string. The user can
-/// copy/save this to share a config; passwords are excluded and must be re-entered.
+/// Export all connections, INCLUDING secrets (passwords), so an import can fully
+/// restore them. Intended for local backup; the JSON contains plaintext secrets.
 #[tauri::command]
 pub fn export_config() -> Result<String, String> {
-    let mut cfg = redisclient::load_config_with_ids()?;
-    cfg.connections = cfg.connections.into_iter().map(strip_secrets).collect();
+    let cfg = redisclient::load_config_with_ids()?;
     serde_json::to_string_pretty(&cfg.connections)
         .map_err(|e| format!("Failed to serialize config: {e}"))
+}
+
+/// Import connections, MERGING with existing ones (not replacing). A connection
+/// is skipped if one with the same host:port already exists. Secrets (passwords)
+/// from the import are moved into the keyring on save.
+#[tauri::command]
+pub fn import_config(imported: Vec<Connection>) -> Result<serde_json::Value, String> {
+    let mut cfg = redisclient::load_config_with_ids()?;
+    let mut existing_hosts: std::collections::HashSet<(String, u16)> = cfg
+        .connections
+        .iter()
+        .map(|c| (c.host.clone(), c.port))
+        .collect();
+    let mut added = 0usize;
+    let mut skipped = 0usize;
+    for mut conn in imported {
+        if existing_hosts.contains(&(conn.host.clone(), conn.port)) {
+            skipped += 1;
+            continue;
+        }
+        // Fresh id so it doesn't collide with an existing connection's keyring key.
+        conn.id = Some(uuid::Uuid::new_v4().to_string());
+        existing_hosts.insert((conn.host.clone(), conn.port));
+        cfg.connections.push(conn);
+        added += 1;
+    }
+    redisclient::save_config(&cfg)?;
+    redisclient::invalidate_session_cache();
+    Ok(serde_json::json!({ "added": added, "skipped": skipped }))
 }
 
 #[tauri::command]

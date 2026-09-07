@@ -14,9 +14,10 @@ interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
+  size?: string;
 }
 
-export function StringViewer({ target, currentKey, refreshSignal }: Props) {
+export function StringViewer({ target, currentKey, refreshSignal, size }: Props) {
   const { connectionId: connId, db } = target;
   const [value, setValue] = useState("");
   const [binary, setBinary] = useState(false);
@@ -60,35 +61,31 @@ export function StringViewer({ target, currentKey, refreshSignal }: Props) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        <TextArea
-          className="mono"
-          style={{ height: "100%", resize: "none", fontSize: 12.5 }}
-          value={shown}
-          onChange={(e) => editable && setValue(e.target.value)}
-          disabled={loading || !editable}
-          readOnly={!editable}
+      {/* Toolbar row above the value box: format + copy + size as small tags. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
+        <Select
+          size="small"
+          value={format}
+          onChange={setFormat}
+          style={{ width: 92 }}
+          options={FORMATS.map((f) => ({ value: f, label: f }))}
         />
-        <div style={{ position: "absolute", top: 6, right: 8, display: "flex", gap: 6, alignItems: "center" }}>
-          <Select
-            size="small"
-            value={format}
-            onChange={setFormat}
-            style={{ width: 92 }}
-            options={FORMATS.map((f) => ({ value: f, label: f }))}
-          />
-          <Tooltip title="Copy {format}">
-            <Button
-              size="small"
-              icon={<CopyOutlined />}
-              onClick={async () => {
-                await navigator.clipboard.writeText(shown);
-                message.success("copied");
-              }}
-            />
-          </Tooltip>
-        </div>
+        <Tooltip title="Copy value">
+          <Button size="small" icon={<CopyOutlined />} onClick={async () => {
+            await navigator.clipboard.writeText(shown);
+            message.success("copied");
+          }} />
+        </Tooltip>
+        {size && <Text type="secondary" style={{ fontSize: 11 }}>Size: {size}</Text>}
       </div>
+      <TextArea
+        className="mono"
+        style={{ flex: 1, minHeight: 0, resize: "none", fontSize: 12.5 }}
+        value={shown}
+        onChange={(e) => editable && setValue(e.target.value)}
+        disabled={loading || !editable}
+        readOnly={!editable}
+      />
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <Button size="small" onClick={save} disabled={loading || !editable} type="primary">Save</Button>
       </div>

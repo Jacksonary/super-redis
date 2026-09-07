@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Descriptions, Dropdown, Input, Spin, Tooltip, Typography, Modal, Space } from "antd";
+import { Button, Dropdown, Input, Spin, Tooltip, Typography, Modal, Space } from "antd";
 import { message, modal } from "../antd-app";
 import { CopyOutlined, CheckOutlined, ReloadOutlined, DeleteOutlined, ClockCircleOutlined, LinkOutlined } from "@ant-design/icons";
 import type { KeyInfo, SelectedTarget } from "../types";
@@ -142,27 +142,29 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
     <Dropdown menu={contextMenu} trigger={["contextMenu"]}>
       <div className="mono" style={{ padding: 12, height: "100%", overflow: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Descriptions size="small" column={4} style={{ fontSize: 12, flex: 1 }}>
-        <Descriptions.Item label="Key">
+        {/* Key takes the flexible remainder; Type/TTL size to their content. */}
+        <span style={{ fontSize: 12, color: "inherit", flexShrink: 0 }}>Key:</span>
+        <Tooltip title={currentKey} placement="bottom">
           <span
             onMouseEnter={() => setKeyHover(true)}
             onMouseLeave={() => setKeyHover(false)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, flexGrow: 0, maxWidth: "55%", overflow: "hidden" }}
           >
-            {currentKey}
+            <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "100%" }}>{currentKey}</span>
             <Button
               type="text"
               size="small"
               icon={<CopyOutlined />}
-              style={{ opacity: keyHover ? 1 : 0.001, transition: "opacity .15s" }}
+              style={{ opacity: keyHover ? 1 : 0.001, transition: "opacity .15s", flexShrink: 0 }}
               onClick={copyKey}
             />
           </span>
-        </Descriptions.Item>
-        <Descriptions.Item label="Type">{type || "none"}</Descriptions.Item>
-        <Descriptions.Item label="TTL">
+        </Tooltip>
+        <span style={{ fontSize: 12, flexShrink: 0 }}>Type: {type || "none"}</span>
+        <span style={{ fontSize: 12, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          TTL:{" "}
           {ttlEditing ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <>
               <Input
                 size="small"
                 style={{ width: 70 }}
@@ -172,7 +174,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
                 onPressEnter={saveTtl}
               />
               <Button type="text" size="small" icon={<CheckOutlined />} onClick={saveTtl} />
-            </span>
+            </>
           ) : (
             <Button
               type="link"
@@ -186,9 +188,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
               {meta ? meta.ttl : "-"}
             </Button>
           )}
-        </Descriptions.Item>
-        <Descriptions.Item label="Size">{meta ? formatBytes(meta.size) : "-"}</Descriptions.Item>
-      </Descriptions>
+        </span>
         <Space size={8} style={{ flexShrink: 0 }}>
           <Tooltip title="Refresh">
             <Button size="small" icon={<ReloadOutlined />} onClick={refresh} />
@@ -204,7 +204,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
         </Space>
       </div>
 
-      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} size={meta ? formatBytes(meta.size) : undefined} />}
       {type === "hash" && <HashViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
       {type === "list" && <ListViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
       {type === "set" && <SetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}

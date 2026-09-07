@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Layout, theme, Typography, ConfigProvider, Tooltip, Button, App as AntApp } from "antd";
-import { DatabaseOutlined, MenuUnfoldOutlined, SettingOutlined } from "@ant-design/icons";
+import { DatabaseOutlined, MenuUnfoldOutlined, SettingOutlined, PlusOutlined } from "@ant-design/icons";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
 import { SettingsModal } from "./components/SettingsModal";
 import { TaskPanel } from "./components/TaskPanel";
+import { ConnectionForm } from "./components/ConnectionForm";
 import type { AppSettings, ConnectionSummary, SelectedTarget, Task } from "./types";
 import { api } from "./api";
 import { getLocale, setLocale } from "./i18n";
@@ -22,6 +23,7 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
@@ -182,7 +184,42 @@ export default function App() {
                 <Tooltip title="Settings">
                   <Button icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)} />
                 </Tooltip>
-                <div style={{ flex: 1 }} />
+                <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, width: "100%" }}>
+                  {connections.map((c) => (
+                    <Tooltip key={c.id} title={c.name} placement="right">
+                      <button
+                        onClick={() => selectConnection({ connectionId: c.id, db: c.db })}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          border: selected?.connectionId === c.id ? "2px solid #1677ff" : "1px solid rgba(128,128,128,0.3)",
+                          background: c.color ?? "#4C9BFA",
+                          color: "#fff",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          padding: 0,
+                        }}
+                      >
+                        {c.name.slice(0, 3)}
+                      </button>
+                    </Tooltip>
+                  ))}
+                  <Tooltip title="Add connection" placement="right">
+                    <Button
+                      shape="circle"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      onClick={() => setFormOpen(true)}
+                      style={{ flexShrink: 0 }}
+                    />
+                  </Tooltip>
+                </div>
                 <Tooltip title="Expand sidebar">
                   <Button icon={<MenuUnfoldOutlined />} onClick={() => setCollapsed(false)} />
                 </Tooltip>
@@ -250,6 +287,17 @@ export default function App() {
             settings={appSettings}
             saveSettings={saveSettings}
             onRefreshConnections={refreshConnections}
+          />
+
+          <ConnectionForm
+            open={formOpen}
+            initialSummary={null}
+            onClose={() => setFormOpen(false)}
+            onSaved={() => {
+              setFormOpen(false);
+              refreshConnections();
+            }}
+            locale={locale}
           />
         </AntApp>
       </ConfigProvider>

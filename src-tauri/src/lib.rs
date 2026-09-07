@@ -29,6 +29,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .manage(task_registry::TaskRegistry::default())
@@ -37,6 +38,7 @@ pub fn run() {
             commands::config::get_config,
             commands::config::put_config,
             commands::config::export_config,
+            commands::config::import_config,
             commands::config::get_connection_groups,
             commands::config::put_connection_groups,
             commands::settings::get_app_settings,
