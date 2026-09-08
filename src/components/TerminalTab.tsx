@@ -115,11 +115,11 @@ export function TerminalTab({ target }: Props) {
         )}
         {log.map((l, i) => (
           <div key={i} style={{ marginBottom: 4 }}>
-            <div>
+            <div style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
               <span style={{ color: PROMPT, fontWeight: 700 }}>{"> "}</span>
               <span style={{ fontWeight: 600 }}>{l.cmd}</span>
             </div>
-            <div style={{ whiteSpace: "pre-wrap", color: l.error ? "#ff4d4f" : "#2f9e44", paddingLeft: 16 }}>{l.result}</div>
+            <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", color: l.error ? "#ff4d4f" : "#2f9e44", paddingLeft: 16 }}>{l.result}</div>
           </div>
         ))}
       </div>

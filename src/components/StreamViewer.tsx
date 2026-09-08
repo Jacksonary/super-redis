@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Input, Button, Space, Modal, Popconfirm } from "antd";
-import { message } from "../antd-app";
+import { Table, Input, Button, Space, Modal, Tooltip, theme } from "antd";
+import { message, modal } from "../antd-app";
+import { DeleteOutlined } from "@ant-design/icons";
 import type { SelectedTarget, StreamEntry } from "../types";
 import { api } from "../api";
 
@@ -12,7 +13,9 @@ interface Props {
 
 export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
   const { connectionId: connId, db } = target;
+  const { token } = theme.useToken();
   const [entries, setEntries] = useState<StreamEntry[]>([]);
+  const [groups, setGroups] = useState<{ name: string; consumers: number; pending: number; last_delivered_id: string }[]>([]);
   const [length, setLength] = useState(0);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -25,6 +28,7 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
     try {
       const res = await api.getStreamInfo(connId, db, currentKey);
       setEntries(res.entries);
+      setGroups(res.groups ?? []);
       setLength(res.length);
     } catch (e) {
       message.error(String(e));
@@ -59,6 +63,17 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
     load();
   };
 
+  const confirmRemove = (id: string) => {
+    modal.confirm({
+      title: "Delete entry",
+      content: "Delete this stream entry?",
+      okText: "Delete",
+      cancelText: "Cancel",
+      okButtonProps: { danger: true },
+      onOk: () => remove(id),
+    });
+  };
+
   const createGroup = async () => {
     if (!groupName) return;
     await api.createConsumerGroup(connId, db, currentKey, groupName);
@@ -71,11 +86,27 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
   return (
     <div className="value-viewer" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <Space>
-        <span style={{ fontSize: 12, opacity: 0.7 }}>Length: {length}</span>
+        <span style={{ fontSize: 12, opacity: 0.7, fontVariantNumeric: "tabular-nums" }}>Length: {length}</span>
         <Button size="small" type="primary" onClick={() => setAddOpen(true)}>Add entry</Button>
         <Button size="small" onClick={() => setGroupOpen(true)}>New group</Button>
         <Button size="small" onClick={load}>Refresh</Button>
       </Space>
+      {groups.length > 0 && (
+        <Space size={12} wrap style={{ fontSize: 11 }}>
+          {groups.map((g) => {
+            const pendColor = g.pending === 0 ? token.colorSuccess : g.pending >= length ? token.colorError : token.colorWarning;
+            return (
+              <span key={g.name} style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: pendColor, flexShrink: 0 }} />
+                <Tooltip title={g.name}>
+                  <span className="mono" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
+                </Tooltip>
+                <span style={{ color: token.colorTextTertiary, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{g.pending} pending</span>
+              </span>
+            );
+          })}
+        </Space>
+      )}
       <Table<StreamEntry>
         size="small"
         rowKey="id"
@@ -84,19 +115,18 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
           {
             title: "Fields",
             dataIndex: "fields",
+            ellipsis: true,
             render: (f: [string, string][]) => (
-              <span style={{ fontSize: 12 }}>
-                {f.map(([k, v]) => `${k}=${v}`).join("  ")}
-              </span>
+              <Tooltip title={f.map(([k, v]) => `${k}=${v}`).join("\n")}>
+                <span style={{ fontSize: 12 }}>{f.map(([k, v]) => `${k}=${v}`).join("  ")}</span>
+              </Tooltip>
             ),
           },
           {
             title: "Actions",
-            width: 90,
+            width: 70,
             render: (_, r) => (
-              <Popconfirm title="Delete entry?" onConfirm={() => remove(r.id)}>
-                <Button size="small" type="link" danger>Delete</Button>
-              </Popconfirm>
+              <Button size="small" type="text" icon={<DeleteOutlined />} onClick={() => confirmRemove(r.id)} />
             ),
           },
         ]}
@@ -113,7 +143,7 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
           rows={5}
           placeholder={"field1 value1\nfield2 value2"}
           className="mono"
-          style={{ fontSize: 12.5 }}
+          style={{ fontSize: 12 }}
         />
       </Modal>
 

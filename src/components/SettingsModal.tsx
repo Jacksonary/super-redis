@@ -67,7 +67,7 @@ export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, se
 
   return (
     <Modal className="settings-modal" open={open} onCancel={onClose} footer={null} title="Settings" width={460}>
-      <Form size="small" labelAlign="left" labelCol={{ span: 12 }} wrapperCol={{ span: 12 }} style={{ marginTop: 12 }}>
+      <Form size="small" labelAlign="left" labelCol={{ span: 10 }} wrapperCol={{ span: 14 }} style={{ marginTop: 12 }}>
         <Form.Item label="Theme">
           <Switch checked={isDark} onChange={onThemeToggle} checkedChildren="Dark" unCheckedChildren="Light" />
         </Form.Item>

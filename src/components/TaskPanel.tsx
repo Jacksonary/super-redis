@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Progress, Tag, Popover, List, Typography } from "antd";
+import { Button, Progress, Tag, Popover, List, Typography, Tooltip } from "antd";
 import { NotificationOutlined, CloseOutlined } from "@ant-design/icons";
 import type { Task } from "../types";
 
@@ -42,7 +42,11 @@ export function TaskPanel({ tasks, onDismiss }: Props) {
             ]}
           >
             <List.Item.Meta
-              title={<Text style={{ fontSize: 12 }}>{t.title}</Text>}
+              title={
+                <Tooltip title={t.title}>
+                  <Text ellipsis style={{ fontSize: 12, maxWidth: 240 }}>{t.title}</Text>
+                </Tooltip>
+              }
               description={<Progress size="small" percent={t.progress} status={statusColor[t.status] as any} />}
             />
           </List.Item>
@@ -63,7 +67,7 @@ export function TaskPanel({ tasks, onDismiss }: Props) {
         style={{
           position: "fixed",
           right: 18,
-          bottom: 18,
+          bottom: 56, // clear the 40px bottom terminal/monitor tab band
           zIndex: 1000,
           cursor: "pointer",
         }}

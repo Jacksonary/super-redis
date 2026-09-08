@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Input, Button, Space, Tooltip } from "antd";
+import { Table, Input, Button, Space, Tooltip, Modal } from "antd";
 import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { message, modal } from "../antd-app";
 import type { SelectedTarget } from "../types";
@@ -21,6 +21,8 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
   const [loading, setLoading] = useState(true);
   const [newMember, setNewMember] = useState("");
   const [search, setSearch] = useState("");
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameVal, setRenameVal] = useState("");
 
   const load = useCallback(
     async (c: number, reset: boolean) => {
@@ -67,27 +69,17 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
     });
   };
 
-  const rename = (oldMember: string) => {
-    let next: string | null = null;
-    modal.confirm({
-      title: "Rename member",
-      content: (
-        <Input
-          defaultValue={oldMember}
-          onChange={(e) => (next = e.target.value)}
-          autoFocus
-        />
-      ),
-      okText: "Rename",
-      cancelText: "Cancel",
-      onOk: async () => {
-        if (next && next !== oldMember) {
-          await api.renameSetMember(connId, db, currentKey, oldMember, next);
-          message.success("renamed");
-          load(0, true);
-        }
-      },
-    });
+  const rename = (member: string) => {
+    setRenameTarget(member);
+    setRenameVal(member);
+  };
+
+  const saveRename = async () => {
+    if (renameTarget === null || !renameVal || renameVal === renameTarget) return;
+    await api.renameSetMember(connId, db, currentKey, renameTarget, renameVal);
+    message.success("renamed");
+    setRenameTarget(null);
+    load(0, true);
   };
 
   const doSearch = async (raw: string) => {
@@ -139,9 +131,9 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
       </div>
       <Table<string>
         size="small"
-        rowKey={(v, i) => `${i}-${v}`}
+        rowKey={(v) => v}
         columns={[
-          { title: <span>Member (Total: {total})</span>, render: (_, v) => <span style={{ fontSize: 12 }}>{v}</span> },
+          { title: <span>Member (Total: {total})</span>, ellipsis: true, render: (_, v) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
           {
             title: "Actions",
             width: 100,
@@ -163,6 +155,16 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
         pagination={false}
         scroll={{ y: "calc(100vh - 360px)" }}
       />
+      <Modal
+        open={renameTarget !== null}
+        title="Rename member"
+        okText="Rename"
+        cancelText="Cancel"
+        onOk={saveRename}
+        onCancel={() => setRenameTarget(null)}
+      >
+        <Input value={renameVal} onChange={(e) => setRenameVal(e.target.value)} autoFocus onPressEnter={saveRename} />
+      </Modal>
     </div>
   );
 }

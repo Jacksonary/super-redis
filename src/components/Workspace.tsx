@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Dropdown, Typography, Breadcrumb } from "antd";
-import { ConsoleSqlOutlined, DashboardOutlined, HomeOutlined, DownOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Typography, Breadcrumb, Tooltip, Space, Input, InputNumber } from "antd";
+import { ConsoleSqlOutlined, DashboardOutlined, HomeOutlined, DownOutlined, CloseOutlined, SearchOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
 import { KeyBrowser } from "./KeyBrowser";
 import { ValuePanel } from "./ValuePanel";
 import { ConnInfoPanel } from "./ConnInfoPanel";
 import { TerminalTab } from "./TerminalTab";
-import { MonitorTab } from "./MonitorTab";
+import { MonitorTab, type MonitorSub } from "./MonitorTab";
 
 const { Text } = Typography;
 
 export function Workspace({ target, connectionName, delimiter, isDark, onDbChange }: { target: SelectedTarget; connectionName: string; delimiter: string; isDark: boolean; onDbChange: (db: number) => void }) {
-  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
+  const borderColor = "var(--border)";
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [listReload, setListReload] = useState(0);
   const [splitRatio, setSplitRatio] = useState(0.42);
@@ -21,6 +21,14 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
   const [dbCount, setDbCount] = useState(0);
   const [panelH, setPanelH] = useState(260); // bottom terminal/monitor panel height (px)
   const [panelOpen, setPanelOpen] = useState(false);
+  const [monitorSub, setMonitorSub] = useState<MonitorSub>("slowlog");
+  // Memory analyze is triggered from the bottom bar (Analyze icon) + the count is
+  // shown there too, so it's lifted here; the pattern/sample inputs stay in the
+  // Memory panel.
+  const [memoryAnalyzeSignal, setMemoryAnalyzeSignal] = useState(0);
+  const [memoryScanned, setMemoryScanned] = useState(0);
+  const [memoryPattern, setMemoryPattern] = useState("");
+  const [memorySample, setMemorySample] = useState(2000);
   const panelDragging = useRef(false);
 
   useEffect(() => {
@@ -66,6 +74,14 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
     document.body.classList.remove("dragging");
   };
 
+  // Open the bottom panel on a specific Monitor sub-page (hover → click).
+  const openMonitor = (sub: MonitorSub) => {
+    setMonitorSub(sub);
+    setPanelOpen(true);
+    setMonitorOpen(true);
+    setTerminalOpen(false);
+  };
+
   // Global mouse handlers so a drag that leaves the container (or window) still
   // cleans up the `dragging` class + cursor on mouseup, instead of sticking.
   useEffect(() => {
@@ -96,9 +112,9 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
           items={[
             {
               title: (
-                <Text style={{ fontSize: 12.5 }}>
-                  {connectionName || "Connection"}
-                </Text>
+                <Tooltip title={connectionName || "Connection"}>
+                  <Text ellipsis style={{ fontSize: 12, maxWidth: 220 }}>{connectionName || "Connection"}</Text>
+                </Tooltip>
               ),
             },
             {
@@ -115,14 +131,18 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
                   }}
                   trigger={["click"]}
                 >
-                  <Text style={{ fontSize: 12.5, cursor: "pointer" }} onClick={(e) => e.preventDefault()}>
+                  <Text style={{ fontSize: 12, cursor: "pointer" }} onClick={(e) => e.preventDefault()}>
                     DB{target.db} <DownOutlined style={{ fontSize: 9, opacity: 0.55 }} />
                   </Text>
                 </Dropdown>
               ),
             },
             ...(selectedKey
-              ? [{ title: <Text className="mono" style={{ fontSize: 12.5 }}>{selectedKey}</Text> }]
+              ? [{ title: (
+                  <Tooltip title={selectedKey}>
+                    <Text className="mono" style={{ fontSize: 12, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedKey}</Text>
+                  </Tooltip>
+                ) }]
               : []),
           ]}
         />
@@ -136,13 +156,14 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
           Overview
         </Button>
       </div>
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
         <div style={{ width: `${splitRatio * 100}%`, minWidth: 260, borderRight: `1px solid ${borderColor}` }}>
           <KeyBrowser target={target} delimiter={delimiter} onSelectKey={setSelectedKey} reloadSignal={listReload} />
         </div>
         <div
+          className="splitter splitter-v"
           onMouseDown={startDrag}
-          style={{ width: 6, cursor: "col-resize", background: "transparent", flexShrink: 0 }}
+          style={{ width: 6, flexShrink: 0 }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           {selectedKey ? (
@@ -167,11 +188,23 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${borderColor}`, height: panelOpen ? panelH : 40, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          borderTop: `1px solid ${borderColor}`,
+          height: panelOpen ? panelH : 40,
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          // Clip the panel's content (e.g. the white raised table) so it can't
+          // overflow upward and cover the list while the panel is resizing.
+          overflow: "hidden",
+        }}
+      >
         {panelOpen && (
           <div
+            className="splitter splitter-h"
             onMouseDown={startPanelDrag}
-            style={{ height: 5, cursor: "row-resize", background: "transparent", marginBottom: 0, flexShrink: 0 }}
+            style={{ height: 5, marginBottom: 0, flexShrink: 0 }}
           />
         )}
         <div
@@ -182,42 +215,103 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
             type={panelOpen && terminalOpen ? "primary" : "default"}
             icon={<ConsoleSqlOutlined />}
             onClick={() => {
-              // Clicking the already-active tab collapses the panel; otherwise open it
-              // (never leaves the panel open with no tab content, which shows a floating gap).
-              if (panelOpen && terminalOpen) {
-                setPanelOpen(false);
-                setTerminalOpen(false);
-                setMonitorOpen(false);
-              } else {
-                setPanelOpen(true);
-                setTerminalOpen(true);
-                setMonitorOpen(false);
-              }
+              // Clicking the tab always opens the terminal sub-panel. Collapsing is
+              // only via the top-right close button (removed click-again-to-close).
+              setPanelOpen(true);
+              setTerminalOpen(true);
+              setMonitorOpen(false);
             }}
           >
             Terminal
           </Button>
-          <Button
-            size="small"
-            type={panelOpen && monitorOpen ? "primary" : "default"}
-            icon={<DashboardOutlined />}
-            onClick={() => {
-              if (panelOpen && monitorOpen) {
-                setPanelOpen(false);
-                setTerminalOpen(false);
-                setMonitorOpen(false);
-              } else {
-                setPanelOpen(true);
-                setMonitorOpen(true);
-                setTerminalOpen(false);
-              }
+          <Dropdown
+            trigger={["hover"]}
+            menu={{
+              items: [
+                { key: "slowlog", label: "Slow Log", onClick: () => openMonitor("slowlog") },
+                { key: "memory", label: "Memory", onClick: () => openMonitor("memory") },
+                { key: "clients", label: "Clients", onClick: () => openMonitor("clients") },
+                { key: "commands", label: "Commands", onClick: () => openMonitor("commands") },
+              ],
             }}
           >
-            Monitor
-          </Button>
+            <Button
+              size="small"
+              type={panelOpen && monitorOpen ? "primary" : "default"}
+              icon={<DashboardOutlined />}
+              onClick={() => {
+                // Clicking the Monitor tab (when the panel is open) switches back
+                // to the Monitor sub-page. Opening from a closed panel requires
+                // picking a sub-item from the hover menu. Collapsing is only via
+                // the top-right close button.
+                if (panelOpen) openMonitor(monitorSub);
+              }}
+            >
+              Monitor
+            </Button>
+          </Dropdown>
+          <div style={{ flex: 1 }} />
+          {panelOpen && monitorOpen && monitorSub === "memory" && (
+            <Space size={4}>
+              <Input
+                size="small"
+                allowClear
+                placeholder="Pattern (blank = all)"
+                style={{ width: 200 }}
+                value={memoryPattern}
+                onChange={(e) => setMemoryPattern(e.target.value)}
+                onPressEnter={() => setMemoryAnalyzeSignal((s) => s + 1)}
+              />
+              <InputNumber
+                size="small"
+                min={1}
+                max={20000}
+                value={memorySample}
+                onChange={(v) => setMemorySample(Number(v) || 2000)}
+                style={{ width: 80 }}
+              />
+              <Tooltip title="Analyze memory">
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<SearchOutlined />}
+                  onClick={() => setMemoryAnalyzeSignal((s) => s + 1)}
+                />
+              </Tooltip>
+              {memoryScanned > 0 && (
+                <Text type="secondary" style={{ fontSize: 10 }}>
+                  {memoryScanned} keys
+                </Text>
+              )}
+            </Space>
+          )}
+          <div style={{ flex: 1 }} />
+          {panelOpen && (
+            <Tooltip title="Close panel">
+              <Button
+                size="small"
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={() => {
+                  setPanelOpen(false);
+                  setTerminalOpen(false);
+                  setMonitorOpen(false);
+                }}
+              />
+            </Tooltip>
+          )}
         </div>
         {panelOpen && terminalOpen && <TerminalTab target={target} />}
-        {panelOpen && monitorOpen && <MonitorTab target={target} />}
+        {panelOpen && monitorOpen && (
+          <MonitorTab
+            target={target}
+            sub={monitorSub}
+            pattern={memoryPattern}
+            sample={memorySample}
+            analyzeSignal={memoryAnalyzeSignal}
+            onScanned={setMemoryScanned}
+          />
+        )}
       </div>
     </div>
   );

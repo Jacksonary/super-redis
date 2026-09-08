@@ -208,12 +208,12 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal }: Pro
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 8 }}>
-      <div className="key-toolbar" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 12 }}>
+      <div className="key-toolbar" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
         <Input.Search
           placeholder="Search key (pattern)"
           allowClear
-          style={{ width: 190 }}
+          style={{ flex: 1, minWidth: 0 }}
           onChange={(e) => e.target.value === "" && setPattern("")}
           onSearch={(v) => {
             setPattern(v);
@@ -269,9 +269,14 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal }: Pro
               {
                 title: "Key",
                 align: "left",
+                ellipsis: true,
                 render: (_, v) => (
                   <Dropdown menu={contextMenu(v)} trigger={["contextMenu"]} onOpenChange={(open) => open && highlightKey(v)}>
-                    <span className="mono" style={{ fontSize: 12, display: "block", userSelect: "none" }}>{v}</span>
+                    <Tooltip title={v}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, width: "100%", userSelect: "none" }}>
+                        <span className="mono" style={{ fontSize: 12, flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>
+                      </span>
+                    </Tooltip>
                   </Dropdown>
                 ),
               },
@@ -318,14 +323,16 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal }: Pro
             titleRender={(node) => {
               const key = node.key as string;
               const content = (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, userSelect: "none", width: "100%" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, userSelect: "none", width: "100%", minWidth: 0 }}>
                   {!node.isLeaf &&
                     (expandedKeys.includes(key) ? (
-                      <FolderOpenOutlined style={{ color: token.colorWarning }} />
+                      <FolderOpenOutlined style={{ color: token.colorTextTertiary, flexShrink: 0 }} />
                     ) : (
-                      <FolderOutlined style={{ color: token.colorWarning }} />
+                      <FolderOutlined style={{ color: token.colorTextTertiary, flexShrink: 0 }} />
                     ))}
-                  <span className="mono" style={{ fontSize: 12 }}>{node.title}</span>
+                  <Tooltip title={node.title} placement="bottomLeft">
+                    <span className="mono" style={{ fontSize: 12, flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.title}</span>
+                  </Tooltip>
                 </span>
               );
               if (node.isLeaf) {

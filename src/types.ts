@@ -101,6 +101,12 @@ export interface KeyInfo {
   encoding?: string | null;
 }
 
+export interface MemoryStat {
+  key: string;
+  /** MEMORY USAGE bytes; -1 when Redis reports no allocation. */
+  size: number;
+}
+
 export interface ListKeysResult {
   keys: string[];
   cursor: number;

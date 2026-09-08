@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Button, Dropdown, Input, Spin, Tooltip, Typography, Modal, Space } from "antd";
+import { Button, Dropdown, Input, Spin, Tooltip, Typography, Modal, Space, theme } from "antd";
 import { message, modal } from "../antd-app";
 import { CopyOutlined, CheckOutlined, ReloadOutlined, DeleteOutlined, ClockCircleOutlined, LinkOutlined } from "@ant-design/icons";
 import type { KeyInfo, SelectedTarget } from "../types";
 import { api } from "../api";
-import { formatBytes } from "../utils";
 import { StringViewer } from "./StringViewer";
 import { HashViewer } from "./HashViewer";
 import { ListViewer } from "./ListViewer";
@@ -23,6 +22,9 @@ interface Props {
 
 export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
   const { connectionId: connId, db } = target;
+  // Hooks must all run before any conditional return (the `loading` early-return
+  // below) — themed token access lives here so the hook count stays stable.
+  const { token } = theme.useToken();
   const [meta, setMeta] = useState<KeyInfo | null>(null);
   const [type, setType] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -128,6 +130,24 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
   // alternative to a synchronous DEL that could stall the Redis event loop.
   const isLargeType = ["list", "set", "zset"].includes(type);
 
+  // Key-type family: string stays calm (the majority), the structured types each
+  // get a distinct hue (from the --type-* CSS vars, which carry a tuned value per
+  // theme) so the value panel telegraphs what it's showing.
+  const TYPE_HUES: Record<string, string> = {
+    string: "var(--type-string)",
+    hash: "var(--type-hash)",
+    list: "var(--type-list)",
+    set: "var(--type-set)",
+    zset: "var(--type-zset)",
+    stream: "var(--type-stream)",
+    ReJSON: "var(--type-rejson)",
+  };
+  const typeHue = TYPE_HUES[type] ?? "var(--type-string)";
+  // TTL urgency: a key about to expire (<60s) flips to amber so it reads as a
+  // signal; a persistent / timed-out one stays calm.
+  const ttl = meta ? meta.ttl : undefined;
+  const ttlHue = ttl !== undefined && ttl > 0 && ttl < 60 ? token.colorWarning : token.colorTextSecondary;
+
   const contextMenu = {
     items: [
       { key: "copy", label: "Copy key", icon: <CopyOutlined />, onClick: copyKey },
@@ -148,9 +168,9 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
           <span
             onMouseEnter={() => setKeyHover(true)}
             onMouseLeave={() => setKeyHover(false)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, flexGrow: 0, maxWidth: "55%", overflow: "hidden" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, flex: "0 1 auto", overflow: "hidden" }}
           >
-            <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "100%" }}>{currentKey}</span>
+            <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "100%", flex: "1 1 auto", minWidth: 0 }}>{currentKey}</span>
             <Button
               type="text"
               size="small"
@@ -160,7 +180,11 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
             />
           </span>
         </Tooltip>
-        <span style={{ fontSize: 12, flexShrink: 0 }}>Type: {type || "none"}</span>
+        <span style={{ fontSize: 12, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: typeHue, flexShrink: 0 }} />
+          <span>Type:</span>
+          <span style={{ color: typeHue }}>{type || "none"}</span>
+        </span>
         <span style={{ fontSize: 12, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }}>
           TTL:{" "}
           {ttlEditing ? (
@@ -179,7 +203,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
             <Button
               type="link"
               size="small"
-              style={{ padding: 0, height: "auto" }}
+              style={{ padding: 0, height: "auto", color: ttlHue }}
               onClick={() => {
                 setTtlSecs(String(meta ? meta.ttl : ""));
                 setTtlEditing(true);
@@ -189,6 +213,8 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
             </Button>
           )}
         </span>
+        {/* Left group (Key/Type/TTL) hugs left; the action group hugs right. */}
+        <div style={{ flex: 1 }} />
         <Space size={8} style={{ flexShrink: 0 }}>
           <Tooltip title="Refresh">
             <Button size="small" icon={<ReloadOutlined />} onClick={refresh} />
@@ -204,7 +230,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
         </Space>
       </div>
 
-      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} size={meta ? formatBytes(meta.size) : undefined} />}
+      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} sizeBytes={meta?.size ?? undefined} />}
       {type === "hash" && <HashViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
       {type === "list" && <ListViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
       {type === "set" && <SetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}

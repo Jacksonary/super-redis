@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Tooltip, Typography, Select } from "antd";
+import { Button, Input, Tooltip, Typography, Select, theme } from "antd";
 import { message } from "../antd-app";
+import { formatBytes } from "../utils";
 import { CopyOutlined } from "@ant-design/icons";
 
 const { TextArea } = Input;
@@ -14,11 +15,12 @@ interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
-  size?: string;
+  sizeBytes?: number;
 }
 
-export function StringViewer({ target, currentKey, refreshSignal, size }: Props) {
+export function StringViewer({ target, currentKey, refreshSignal, sizeBytes }: Props) {
   const { connectionId: connId, db } = target;
+  const { token } = theme.useToken();
   const [value, setValue] = useState("");
   const [binary, setBinary] = useState(false);
   const [format, setFormat] = useState("text");
@@ -76,11 +78,20 @@ export function StringViewer({ target, currentKey, refreshSignal, size }: Props)
             message.success("copied");
           }} />
         </Tooltip>
-        {size && <Text type="secondary" style={{ fontSize: 11 }}>Size: {size}</Text>}
+        {sizeBytes !== undefined && (
+          <Text
+            style={{
+              fontSize: 11,
+              color: sizeBytes >= 64 * 1024 * 1024 ? token.colorError : sizeBytes >= 1024 * 1024 ? token.colorWarning : token.colorTextSecondary,
+            }}
+          >
+            Size: {formatBytes(sizeBytes)}
+          </Text>
+        )}
       </div>
       <TextArea
         className="mono"
-        style={{ flex: 1, minHeight: 0, resize: "none", fontSize: 12.5 }}
+        style={{ flex: 1, minHeight: 0, resize: "none", fontSize: 12 }}
         value={shown}
         onChange={(e) => editable && setValue(e.target.value)}
         disabled={loading || !editable}

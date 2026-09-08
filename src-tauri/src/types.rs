@@ -225,7 +225,12 @@ pub struct ConnectionGroup {
 }
 
 /// App-level settings persisted to `settings.json`.
+// Fields are camelCase to match the frontend TS contract. Without `rename_all`
+// the names would be snake_case on the wire, and a camelCase JS object sent via
+// `invoke` would deserialize with every field left at its default (e.g.
+// allow_multi_instance would always be false → single-instance never lifts).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default = "default_theme")]
     pub theme: String, // light | dark | system

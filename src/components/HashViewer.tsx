@@ -126,8 +126,8 @@ export function HashViewer({ target, currentKey, refreshSignal }: Props) {
         size="small"
         rowKey="field"
         columns={[
-          { title: <span>Field (Total: {total})</span>, dataIndex: "field", ellipsis: true },
-          { title: "Value", dataIndex: "value", render: (v: string) => <span style={{ fontSize: 12 }}>{v}</span> },
+          { title: <span>Field (Total: {total})</span>, dataIndex: "field", ellipsis: true, render: (v: string) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
+          { title: "Value", dataIndex: "value", ellipsis: true, render: (v: string) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
           {
             title: "Actions",
             width: 100,

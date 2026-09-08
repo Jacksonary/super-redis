@@ -23,9 +23,9 @@ const PRESET_COLORS: { value: string; name: string }[] = [
   { value: "#1677ff", name: "Blue" },
   { value: "#722ed1", name: "Iris" },
   { value: "#eb2f96", name: "Purple" },
-  { value: "#a8071a", name: "Red" },
+  { value: "#a0522d", name: "Sienna" },
   { value: "#2f54eb", name: "Indigo" },
-  { value: "#7cb305", name: "Lime" },
+  { value: "#6b8e23", name: "Olive" },
   { value: "#08979c", name: "Cyan" },
   { value: "#003eb3", name: "Navy" },
   { value: "#fadb14", name: "Yellow" },
@@ -40,6 +40,7 @@ const MODE_LABELS: Record<string, string> = {
 
 // A file picker that fills the field's value. SSL cert/key are file paths.
 function FileField({ label, placeholder, name, form }: { label: string; placeholder?: string; name: string; form: ReturnType<typeof Form.useForm>[0] }) {
+  const val = Form.useWatch(name, form);
   const pick = async () => {
     const sel = await open({ multiple: false, directory: false, title: `Select ${label}` });
     if (typeof sel === "string") form.setFieldValue(name, sel);
@@ -48,7 +49,11 @@ function FileField({ label, placeholder, name, form }: { label: string; placehol
     <Form.Item label={label}>
       <Space.Compact style={{ width: "100%" }}>
         <Form.Item name={name} noStyle>
-          <Input placeholder={placeholder ?? "/path/to/file"} style={{ width: "100%" }} />
+          <Input
+            placeholder={placeholder ?? "/path/to/file"}
+            style={{ width: "100%", textOverflow: "ellipsis" }}
+            title={val == null ? undefined : String(val)}
+          />
         </Form.Item>
         <Button icon={<FolderOpenOutlined />} onClick={pick} />
       </Space.Compact>

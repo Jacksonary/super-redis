@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Input, InputNumber, Button, Space, Tooltip } from "antd";
+import { Table, Input, InputNumber, Button, Space, Tooltip, Modal } from "antd";
 import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { message, modal } from "../antd-app";
 import type { SelectedTarget, ZSetItem } from "../types";
@@ -22,6 +22,9 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
   const [newMember, setNewMember] = useState("");
   const [newScore, setNewScore] = useState<number>(0);
   const [search, setSearch] = useState("");
+  const [editTarget, setEditTarget] = useState<string | null>(null);
+  const [editMember, setEditMember] = useState("");
+  const [editScoreVal, setEditScoreVal] = useState<number | null>(null);
 
   const load = useCallback(
     async (c: number, reset: boolean) => {
@@ -69,36 +72,17 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
   };
 
   const editScore = (r: ZSetItem) => {
-    let member = r.member;
-    let score: number | null = null;
-    modal.confirm({
-      title: `Edit: ${r.member}`,
-      content: (
-        <Space direction="vertical" style={{ width: "100%" }}>
-          <Input
-            defaultValue={r.member}
-            onChange={(e) => (member = e.target.value)}
-            autoFocus
-            placeholder="member"
-          />
-          <InputNumber
-            defaultValue={r.score}
-            onChange={(v) => (score = v)}
-            style={{ width: 160 }}
-            placeholder="score"
-          />
-        </Space>
-      ),
-      okText: "Save",
-      cancelText: "Cancel",
-      onOk: async () => {
-        if (score !== null) {
-          await api.renameZsetMember(connId, db, currentKey, r.member, member, score);
-          message.success("updated");
-          load(0, true);
-        }
-      },
-    });
+    setEditTarget(r.member);
+    setEditMember(r.member);
+    setEditScoreVal(r.score);
+  };
+
+  const saveEdit = async () => {
+    if (editTarget === null || editScoreVal === null) return;
+    await api.renameZsetMember(connId, db, currentKey, editTarget, editMember, editScoreVal);
+    message.success("updated");
+    setEditTarget(null);
+    load(0, true);
   };
 
   const doSearch = async (raw: string) => {
@@ -158,8 +142,8 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
         size="small"
         rowKey="member"
         columns={[
-          { title: "Score", dataIndex: "score", width: 120, render: (s: number) => <span style={{ fontSize: 12 }}>{s}</span> },
-          { title: <span>Member (Total: {total})</span>, dataIndex: "member", render: (m: string) => <span style={{ fontSize: 12 }}>{m}</span> },
+          { title: "Score", dataIndex: "score", align: "right", minWidth: 90, render: (s: number) => <span className="mono" style={{ fontSize: 12 }}>{s}</span> },
+          { title: <span>Member (Total: {total})</span>, dataIndex: "member", ellipsis: true, render: (m: string) => <Tooltip title={m}><span style={{ fontSize: 12 }}>{m}</span></Tooltip> },
           {
             title: "Actions",
             width: 100,
@@ -181,6 +165,24 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
         pagination={false}
         scroll={{ y: "calc(100vh - 360px)" }}
       />
+      <Modal
+        open={editTarget !== null}
+        title={`Edit: ${editTarget}`}
+        okText="Save"
+        cancelText="Cancel"
+        onOk={saveEdit}
+        onCancel={() => setEditTarget(null)}
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Input value={editMember} onChange={(e) => setEditMember(e.target.value)} placeholder="member" />
+          <InputNumber
+            value={editScoreVal}
+            onChange={(v) => setEditScoreVal(v)}
+            style={{ width: 160 }}
+            placeholder="score"
+          />
+        </Space>
+      </Modal>
     </div>
   );
 }

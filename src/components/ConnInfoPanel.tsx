@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Row, Col, Table, Input, Button, Typography } from "antd";
+import { Card, Row, Col, Table, Input, Button, Typography, Tooltip, theme } from "antd";
 import { message } from "../antd-app";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
@@ -32,12 +32,13 @@ const STATS: [string, string, string][] = [
 ];
 
 function CardList({ title, items, sections }: { title: string; items: [string, string, string][]; sections: Sections | null }) {
+  const { token } = theme.useToken();
   return (
     <Card size="small" title={title}>
       {items.map(([label, section, key]) => (
-        <div key={`${section}.${key}`} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", gap: 8 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>{label}:</Text>
-          <Text style={{ fontSize: 12 }}>{pick(sections, section, key)}</Text>
+        <div key={`${section}.${key}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", gap: 8, minWidth: 0 }}>
+          <Text style={{ fontSize: 11, color: token.colorTextTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "1 1 auto", minWidth: 0 }}>{label}</Text>
+          <Text style={{ fontSize: 12, color: token.colorText, fontWeight: 500, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{pick(sections, section, key)}</Text>
         </div>
       ))}
     </Card>
@@ -109,9 +110,9 @@ export function ConnInfoPanel({ target }: { target: SelectedTarget }) {
             dataSource={keyspaceRows}
             columns={[
               { title: "DB", dataIndex: "db" },
-              { title: "Keys", dataIndex: "keys" },
-              { title: "Expires", dataIndex: "expires" },
-              { title: "Avg TTL", dataIndex: "avgTtl" },
+              { title: "Keys", dataIndex: "keys", align: "right", render: (v: string) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span> },
+              { title: "Expires", dataIndex: "expires", align: "right", render: (v: string) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span> },
+              { title: "Avg TTL", dataIndex: "avgTtl", align: "right", render: (v: string) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span> },
             ]}
           />
         </Card>
@@ -139,8 +140,8 @@ export function ConnInfoPanel({ target }: { target: SelectedTarget }) {
           dataSource={filtered}
           loading={loading}
           columns={[
-            { title: "Key", dataIndex: "key", width: 280, render: (k: string) => <Text className="mono" style={{ fontSize: 11.5 }}>{k}</Text> },
-            { title: "Value", dataIndex: "value", render: (v: string) => <Text style={{ fontSize: 11.5 }}>{v}</Text> },
+            { title: "Key", dataIndex: "key", width: 280, ellipsis: true, render: (k: string) => <Tooltip title={k}><Text className="mono" style={{ fontSize: 12 }}>{k}</Text></Tooltip> },
+            { title: "Value", dataIndex: "value", ellipsis: { showTitle: true }, render: (v: string) => <Tooltip title={v}><Text style={{ fontSize: 12 }}>{v}</Text></Tooltip> },
           ]}
         />
       </Card>

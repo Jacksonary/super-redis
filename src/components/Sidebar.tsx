@@ -17,6 +17,7 @@ import {
   MenuFoldOutlined,
   SettingOutlined,
   FolderOutlined,
+  FolderOpenOutlined,
 } from "@ant-design/icons";
 import type { ConnectionSummary, SelectedTarget } from "../types";
 import { api } from "../api";
@@ -39,7 +40,7 @@ interface Props {
 
 export function Sidebar(props: Props) {
   const { connections, selected, onSelect, onConnectionsChange } = props;
-  const borderColor = props.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
+  const borderColor = props.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
   const { token } = theme.useToken();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ConnectionSummary | null>(null);
@@ -50,6 +51,27 @@ export function Sidebar(props: Props) {
   const [dragConnId, setDragConnId] = useState<string | null>(null);
   const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
   const { state: updateState, setState: setUpdateState, checking, recheck } = useUpdateCheck(__APP_VERSION__);
+
+  // On the dark theme, deep connection hues (Navy #003eb3, Violet #531dab, Indigo
+  // #2f54eb) read too dark against the near-black surface; nudge any very dark
+  // preset toward white so the connection tint stays legible. Light theme leaves
+  // the presets untouched (Yellow/Lime/Red already read fine there). Color-only.
+  function tuneConnectionColor(hex: string | null | undefined, isDark: boolean): string | undefined {
+    if (!hex || !isDark) return undefined;
+    const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return hex;
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (lum >= 95) return hex; // already bright enough on dark
+    const k = 0.45;
+    const lr = Math.round(r + (255 - r) * k);
+    const lg = Math.round(g + (255 - g) * k);
+    const lb = Math.round(b + (255 - b) * k);
+    return `#${((lr << 16) | (lg << 8) | lb).toString(16).padStart(6, "0")}`;
+  }
   const modalOpenRef = useRef(false);
   const downloadingRef = useRef(false);
   const pendingUpdateRef = useRef<{ install: () => Promise<void> } | null>(null);
@@ -224,13 +246,15 @@ export function Sidebar(props: Props) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div
         style={{
-          padding: "12px 12px 8px",
+          height: 36, // matches the Workspace breadcrumb height so line 1 === line 2
+          padding: "0 12px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          borderBottom: `1px solid ${borderColor}`,
         }}
       >
-        <Text strong style={{ fontSize: 14 }}>
+        <Text strong style={{ fontSize: 14, color: token.colorTextSecondary }}>
           {props.locale === "zh-CN" ? "Connections" : "Connections"}
         </Text>
         <Space size={4}>
@@ -241,7 +265,7 @@ export function Sidebar(props: Props) {
       </div>
 
       <div
-        style={{ flex: 1, overflow: "auto", padding: "0 6px" }}
+        style={{ flex: 1, overflow: "auto", padding: "0 2px" }}
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
@@ -252,7 +276,7 @@ export function Sidebar(props: Props) {
         }}
       >
         {groups.length === 0 && (
-          <div style={{ padding: 16, textAlign: "center", opacity: 0.5 }}>
+          <div style={{ padding: 16, textAlign: "center" }}>
             <Text type="secondary">{props.locale === "zh-CN" ? "No connections yet" : "No connections yet"}</Text>
           </div>
         )}
@@ -285,11 +309,17 @@ export function Sidebar(props: Props) {
                       borderRadius: 6,
                     }}
                   >
-                    <FolderOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
-                    <Text type="secondary" style={{ fontSize: 12, flex: 1 }} ellipsis>
-                      {gid}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
+                    {collapsed ? (
+                      <FolderOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
+                    ) : (
+                      <FolderOpenOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
+                    )}
+                    <Tooltip title={gid}>
+                      <Text type="secondary" style={{ fontSize: 12, flex: 1, minWidth: 0 }} ellipsis>
+                        {gid}
+                      </Text>
+                    </Tooltip>
+                    <Text type="secondary" style={{ fontSize: 11, flexShrink: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                       {conns.length}
                     </Text>
                   </div>
@@ -325,11 +355,20 @@ export function Sidebar(props: Props) {
                               cursor: "pointer",
                               // Row tinted by the connection color so connections are
                               // visually distinguishable; selected row is stronger.
+                              // On dark theme, deep presets are nudged lighter first.
+                              // Raise the identity tint so the connection color reads
+                              // as data (was 9%/22% alpha — near-invisible on grey).
                               background: active
-                                ? (conn.color ? `${conn.color}38` : "rgba(22,119,255,0.12)")
+                                ? (conn.color ? `${tuneConnectionColor(conn.color, props.isDark)}50` : "rgba(22,119,255,0.12)")
                                 : conn.color
-                                ? `${conn.color}18`
+                                ? `${tuneConnectionColor(conn.color, props.isDark)}26`
                                 : "transparent",
+                              // Structural selection: a 3px left bar in the connection
+                              // color (or accent when none) so the active row reads as
+                              // selected by structure, not just a stronger wash.
+                              boxShadow: active
+                                ? `inset 3px 0 0 ${tuneConnectionColor(conn.color, props.isDark) ?? "#1677ff"}`
+                                : undefined,
                             }}
                           >
                             <span
@@ -337,22 +376,40 @@ export function Sidebar(props: Props) {
                                 width: 9,
                                 height: 9,
                                 borderRadius: "50%",
-                                // Connection health: restored to the leading position.
+                                // Connection health (leading position): ok=green,
+                                // error=red, disconnected=grey fill, undetected
+                                // (never pinged)=hollow. The ring stays so a hollow
+                                // dot is still distinguishable from the row tint.
                                 background:
                                   status[conn.id] === "ok"
-                                    ? token.colorSuccess
+                                    ? (props.isDark ? token.colorSuccess : "#389e0d")
                                     : status[conn.id] === "error"
-                                    ? token.colorError
-                                    : token.colorTextTertiary,
+                                    ? (props.isDark ? token.colorError : "#cf1322")
+                                    : status[conn.id] === "disconnected"
+                                    ? token.colorTextTertiary
+                                    : "transparent",
+                                // 1px contrast ring keeps the health dot visually
+                                // dominant so it is not mistaken for the connection's
+                                // tint color. Light ring on dark theme, dark ring on
+                                // light theme — color-only, no layout effect.
+                                boxShadow: props.isDark
+                                  ? "0 0 0 1px rgba(255,255,255,0.4)"
+                                  : "0 0 0 1px rgba(0,0,0,0.3)",
                                 marginRight: 8,
                                 flexShrink: 0,
                               }}
                             />
-                            <Text style={{ fontSize: 13, flex: 1 }} ellipsis>
-                              {conn.name}
-                              {conn.readonly ? <ReadOutlined style={{ marginLeft: 4, fontSize: 11 }} /> : null}
-                            </Text>
-                            <Text type="secondary" style={{ fontSize: 11 }}>
+                            <Tooltip title={conn.name}>
+                              <Text style={{ fontSize: 13, flex: 1, minWidth: 0 }} ellipsis>
+                                {conn.name}
+                              </Text>
+                            </Tooltip>
+                            {conn.readonly ? (
+                              <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center" }}>
+                                <ReadOutlined style={{ fontSize: 11 }} />
+                              </span>
+                            ) : null}
+                            <Text type="secondary" style={{ fontSize: 11, flexShrink: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                               {conn.db}
                             </Text>
                           </div>
@@ -386,7 +443,7 @@ export function Sidebar(props: Props) {
         </Tooltip>
       </div>
 
-      <div style={{ padding: "8px 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ height: 40, padding: "0 12px", borderTop: `1px solid ${borderColor}`, display: "flex", gap: 8, alignItems: "center" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {updateState.status === "available" ? (
             <Tooltip title={`v${updateState.version} available — click to update`}>
@@ -419,7 +476,7 @@ export function Sidebar(props: Props) {
               <Tooltip title="Check for updates">
                 <ReloadOutlined
                   spin={checking}
-                  style={{ fontSize: 11, color: token.colorTextQuaternary, cursor: "pointer" }}
+                  style={{ fontSize: 11, color: token.colorTextTertiary, cursor: "pointer" }}
                   onClick={async () => {
                     if (checking) return;
                     const result = await recheck();
@@ -438,7 +495,7 @@ export function Sidebar(props: Props) {
             aria-label="GitHub repository"
             onClick={() => openUrl("https://github.com/Jacksonary/super-redis")}
             onKeyDown={(e) => e.key === "Enter" && openUrl("https://github.com/Jacksonary/super-redis")}
-            style={{ color: token.colorTextQuaternary, cursor: "pointer", display: "inline-flex" }}
+            style={{ color: token.colorTextTertiary, cursor: "pointer", display: "inline-flex" }}
           >
             <GithubOutlined style={{ fontSize: 14 }} />
           </a>
@@ -450,7 +507,7 @@ export function Sidebar(props: Props) {
             aria-label="Gitee repository"
             onClick={() => openUrl("https://gitee.com/weiguoliu/super-redis")}
             onKeyDown={(e) => e.key === "Enter" && openUrl("https://gitee.com/weiguoliu/super-redis")}
-            style={{ color: token.colorTextQuaternary, cursor: "pointer", display: "inline-flex" }}
+            style={{ color: token.colorTextTertiary, cursor: "pointer", display: "inline-flex" }}
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
               <path d="M11.984 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.016 0zm6.09 5.333c.328 0 .593.26.593.593v1.482a.594.594 0 0 1-.593.592H9.777c-.982 0-1.778.796-1.778 1.778v5.63c0 .327.26.593.593.593h5.63c.982 0 1.778-.796 1.778-1.778v-.296a.593.593 0 0 0-.592-.593h-4.15a.592.592 0 0 1-.592-.592v-1.482a.593.593 0 0 1 .593-.592h6.815c.327 0 .593.265.593.592v3.408a4 4 0 0 1-4 4H5.926a.593.593 0 0 1-.593-.593V9.778a4.444 4.444 0 0 1 4.445-4.444h8.296Z" />

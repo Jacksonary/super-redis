@@ -4,6 +4,7 @@ import type {
   Connection,
   ConnectionGroup,
   ConnectionSummary,
+  MemoryStat,
   HashField,
   HashFieldsResult,
   KeyInfo,
@@ -299,6 +300,21 @@ export const api = {
   },
   clearSlowlog(connId: string, db: number): Promise<{ ok: boolean }> {
     return invoke("clear_slowlog", { connId, db });
+  },
+  analyzeMemory(connId: string, db: number, pattern?: string, sample?: number): Promise<MemoryStat[]> {
+    return invoke("analyze_memory", { connId, db, pattern: pattern ?? null, sample: sample ?? null });
+  },
+  listClients(connId: string): Promise<{ clients: Record<string, string>[]; selfId: number }> {
+    return invoke("list_clients", { connId });
+  },
+  killClient(connId: string, id: string): Promise<{ ok: boolean }> {
+    return invoke("kill_client", { connId, id });
+  },
+  getCommandStats(connId: string): Promise<Record<string, number | string>[]> {
+    return invoke("get_command_stats", { connId });
+  },
+  getLatency(connId: string): Promise<{ command: string; timestamp: number; latest: number; max: number }[]> {
+    return invoke("get_latency", { connId });
   },
 };
 

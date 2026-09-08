@@ -11,8 +11,112 @@ body,
   box-sizing: border-box;
 }
 
+/* Explicit body scale so 14px-sans / 12px-mono is a deliberate pairing, and
+   native scrollbars/selection follow the active theme. */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color-scheme: light dark;
+}
+
+/* Splitter handles: an invisible 4-6px drag target is undiscoverable. Show a
+   faint accent edge that brightens on hover so it reads as grabbable. */
+.splitter {
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+.splitter-v {
+  cursor: col-resize;
+  background: transparent;
+}
+.splitter-v::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
+  transition: background-color 0.15s ease;
+}
+.splitter-v:hover::after {
+  background: var(--accent);
+}
+.splitter-h {
+  cursor: row-resize;
+  background: transparent;
+}
+.splitter-h::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: var(--border);
+  transition: background-color 0.15s ease;
+}
+.splitter-h:hover::after {
+  background: var(--accent);
+}
+
+/* Signal Desk palette — ONE committed accent (antd blue), a two-plane surface
+   ladder, and a three-step border scale. Dark and light are tuned partners, not
+   a hue inversion: the accent adjusts per theme, and the raised surface carries
+   the elevation (lighter on dark, white+shadow on light). The true red is demoted
+   to --brand-mark, reserved for the wordmark/empty-state mark only, so it never
+   competes with the error/signal palette. */
+:root {
+  --brand-mark: #dc382d; /* wordmark + empty-state brand mark only */
+}
+[data-theme="dark"] {
+  --surface: #111213;                 /* base/layout */
+  --surface-raised: #1a1c1f;          /* sidebar, panels, raised cards — lighter than base */
+  --surface-inset: #151618;           /* terminal well / inset areas */
+  --value-thead: #1e2023;             /* value-viewer table header */
+  --accent: #1668dc;                  /* antd dark primary — fills/selection/focus */
+  --accent-ink: #4080ff;              /* accent-tinted text/borders on near-black (~9.4:1) */
+  --border-hairline: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  /* Key-type color family — distinct hues for the structured types, kept apart
+     from the accent (blue), the health signals (green/amber/red), and readable
+     on a near-black surface. */
+  --type-string: #6b7280;
+  --type-hash: #b37feb;
+  --type-list: #13c2c2;
+  --type-set: #e260b0;
+  --type-zset: #597ef7;
+  --type-stream: #95de64;
+  --type-rejson: #ffc53d;
+}
+[data-theme="light"] {
+  --surface: #f0f2f5;
+  --surface-raised: #ffffff;
+  --surface-inset: #ffffff;
+  --value-thead: #fafafa;
+  --accent: #1677ff;
+  --accent-ink: #0958d9;
+  --border-hairline: rgba(0, 0, 0, 0.06);
+  --border: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --type-string: #8c8c8c;
+  --type-hash: #722ed1;
+  --type-list: #08979c;
+  --type-set: #c41d7f;
+  --type-zset: #2f54eb;
+  --type-stream: #7cb305;
+  --type-rejson: #d4b106;
+}
+
+/* Monospace for keys/values/terminal/stat columns: prefer a distinctive,
+   legible mono when available, and make digits align in tabular columns. */
 .mono {
-  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-family: "JetBrains Mono", "SF Mono", "IBM Plex Mono", "Menlo", "Consolas", monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Key folder tree: hide antd's +/- switcher gutter — the folder icon itself is the
@@ -50,7 +154,12 @@ body,
 }
 .key-browser .ant-table-tbody > tr.ant-table-row-selected > td {
   background: rgba(22, 119, 255, 0.20) !important;
+}
+[data-theme="dark"] .key-browser .ant-table-tbody > tr.ant-table-row-selected > td {
   color: rgba(255, 255, 255, 0.92) !important;
+}
+[data-theme="light"] .key-browser .ant-table-tbody > tr.ant-table-row-selected > td {
+  color: #1f1f1f !important; /* near-black stays high-contrast on the light-blue wash */
 }
 
 /* Flat/Tree toggle selected color is driven via the Segmented theme token
@@ -67,23 +176,30 @@ body,
 .key-browser .key-tree .ant-tree-treenode {
   width: 100%;
   padding-right: 8px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  border-bottom: 1px solid var(--border-hairline);
 }
 .key-browser .key-tree .ant-tree-treenode .ant-tree-node-content-wrapper {
   border-radius: 4px;
   height: 30px !important;
   padding-block: 0 !important;
-  line-height: 30px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 24px !important; /* match the flat table cell line-height */
 }
 .key-browser .key-tree .ant-tree-treenode .ant-tree-node-content-wrapper .ant-tree-title {
-  line-height: 30px;
+  line-height: 24px;
 }
 .key-browser .key-tree .ant-tree-node-content-wrapper:hover {
   background: rgba(22, 119, 255, 0.10) !important;
 }
 .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
   background: rgba(22, 119, 255, 0.20) !important;
+}
+[data-theme="dark"] .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
   color: rgba(255, 255, 255, 0.92) !important;
+}
+[data-theme="light"] .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
+  color: #1f1f1f !important;
 }
 
 /* While a splitter/resizer is being dragged, suppress text selection everywhere.
@@ -119,28 +235,18 @@ body,
 /* Settings modal: keep every form row at the same vertical gap so the layout
    reads evenly (antd's default 24px is uneven when mixed with nested rows).
    Nested batch rows keep the same gap but are indented to show hierarchy. */
-/* Value viewers (hash/list/set/zset/string) — the antd Table's scroll container
-   can render a light strip (scroll gutter) that doesn't follow dark mode. Force
-   every table surface + the scroll gutter to inherit the theme (transparent in
-   light, near-black in dark) so there's no white edge. */
+/* Value viewers (hash/list/set/zset/string) — give the antd Table a raised
+   surface so it lifts off the content base (instead of a flat transparent slab),
+   and keep the scroll gutter on-theme so there's no white edge in dark mode.
+   Selection/hover overrides above still paint over the raised surface. */
 .value-viewer .ant-table,
 .value-viewer .ant-table-container,
-.value-viewer .ant-table-container table,
 .value-viewer .ant-table-content,
-.value-viewer .ant-table-body,
-.value-viewer .ant-table-body table,
-.value-viewer .ant-table-cell {
-  background: transparent !important;
+.value-viewer .ant-table-body {
+  background: var(--surface-raised) !important;
 }
-[data-theme="dark"] .value-viewer .ant-table,
-[data-theme="dark"] .value-viewer .ant-table-container,
-[data-theme="dark"] .value-viewer .ant-table-content,
-[data-theme="dark"] .value-viewer .ant-table-body {
-  background: rgba(255, 255, 255, 0.02) !important;
-}
-[data-theme="dark"] .value-viewer .ant-table-thead > tr > th {
-  background: rgba(255, 255, 255, 0.04) !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+.value-viewer .ant-table-thead > tr > th {
+  background: var(--value-thead) !important;
 }
 /* The white strip is antd Table's own scrollbar staying white in dark mode
    (ant-design issue #47486). macOS renders it as a custom track/thumb, so style
@@ -159,7 +265,7 @@ body,
 
 /* Divider between the modal title bar and the settings content. */
 .settings-modal .ant-modal-body {
-  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  border-top: 1px solid var(--border);
   padding-top: 16px;
 }
 
@@ -193,28 +299,28 @@ body,
 .conn-form .ant-input-number,
 .conn-form .ant-select-selector {
   background: transparent !important;
-  border-color: rgba(128, 128, 128, 0.28) !important;
+  border-color: var(--border-strong) !important;
   box-shadow: none !important;
 }
 [data-theme="dark"] .conn-form .ant-input,
 [data-theme="dark"] .conn-form .ant-input-affix-wrapper,
 [data-theme="dark"] .conn-form .ant-input-number,
 [data-theme="dark"] .conn-form .ant-select-selector {
-  border-color: rgba(255, 255, 255, 0.18) !important;
+  border-color: var(--border) !important;
 }
 .conn-form .ant-input:hover,
 .conn-form .ant-input-affix-wrapper:hover,
 .conn-form .ant-input-number:hover,
 .conn-form .ant-select-selector:hover {
-  border-color: rgba(22, 119, 255, 0.5) !important;
+  border-color: var(--accent) !important;
 }
 .conn-form .ant-input:focus,
 .conn-form .ant-input-focused,
 .conn-form .ant-input-affix-wrapper-focused,
 .conn-form .ant-input-number-focused,
 .conn-form .ant-select-focused .ant-select-selector {
-  border-color: #1677ff !important;
-  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-ink) !important;
 }
 
 /* Center the selected label content (the color dot) vertically inside the Select.
@@ -250,6 +356,7 @@ body,
 .empty-state-icon {
   font-size: 48px;
   opacity: 0.35;
+  color: var(--brand-mark);
 }
 
 ::-webkit-scrollbar {

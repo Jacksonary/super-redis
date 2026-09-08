@@ -1,3 +1,22 @@
+import { useLayoutEffect, useRef, useState } from "react";
+
+/** Measure a flex-growing container so an antd Table can fill it (the app's
+ * panels are resizable, so a hardcoded `calc(100vh - Npx)` scroll offset does
+ * not match the available height). */
+export function useContainerHeight<T extends HTMLElement = HTMLDivElement>() {
+  const ref = useRef<T>(null);
+  const [h, setH] = useState(200);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setH(el.clientHeight));
+    ro.observe(el);
+    setH(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, h] as const;
+}
+
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes == null || bytes < 0) return "-";
   if (bytes < 1024) return `${bytes} B`;

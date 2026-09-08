@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Input, Button, Space, Tooltip } from "antd";
+import { Table, Input, Button, Space, Tooltip, Modal } from "antd";
 import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { message, modal } from "../antd-app";
 import type { SelectedTarget } from "../types";
@@ -22,6 +22,8 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
   const [pushVal, setPushVal] = useState("");
   const [search, setSearch] = useState("");
   const [searchIdx, setSearchIdx] = useState<number | null>(null);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editVal, setEditVal] = useState("");
 
   const load = useCallback(
     async (p: number) => {
@@ -66,22 +68,16 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
   };
 
   const editValue = (value: string, index: number) => {
-    let next: string | null = null;
-    modal.confirm({
-      title: `Edit index ${index}`,
-      content: (
-        <Input defaultValue={value} onChange={(e) => (next = e.target.value)} autoFocus />
-      ),
-      okText: "Save",
-      cancelText: "Cancel",
-      onOk: async () => {
-        if (next !== null) {
-          await api.setListValue(connId, db, currentKey, index, next);
-          message.success("saved");
-          load(page);
-        }
-      },
-    });
+    setEditVal(value);
+    setEditIndex(index);
+  };
+
+  const saveEdit = async () => {
+    if (editIndex === null) return;
+    await api.setListValue(connId, db, currentKey, editIndex, editVal);
+    message.success("saved");
+    setEditIndex(null);
+    load(page);
   };
 
   const doSearch = async (raw: string) => {
@@ -133,8 +129,8 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
         size="small"
         rowKey={(v, i) => `${i}`}
         columns={[
-          { title: <span>Index (Total: {total})</span>, render: (_, __, i) => <span style={{ fontSize: 12 }}>{page * PAGE + i}</span> },
-          { title: "Value", render: (_, v) => <span style={{ fontSize: 12 }}>{v}</span> },
+          { title: <span>Index (Total: {total})</span>, align: "right", render: (_, __, i) => <span className="mono" style={{ fontSize: 12 }}>{page * PAGE + i}</span> },
+          { title: "Value", ellipsis: true, render: (_, v) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
           {
             title: "Actions",
             width: 100,
@@ -167,6 +163,16 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
         <Button size="small" disabled={page === 0} onClick={() => { setPage((p) => p - 1); load(page - 1); }}>Prev</Button>
         <Button size="small" disabled={(page + 1) * PAGE >= total} onClick={() => { setPage((p) => p + 1); load(page + 1); }}>Next</Button>
       </Space>
+      <Modal
+        open={editIndex !== null}
+        title={`Edit index ${editIndex}`}
+        okText="Save"
+        cancelText="Cancel"
+        onOk={saveEdit}
+        onCancel={() => setEditIndex(null)}
+      >
+        <Input value={editVal} onChange={(e) => setEditVal(e.target.value)} autoFocus onPressEnter={saveEdit} />
+      </Modal>
     </div>
   );
 }

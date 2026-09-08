@@ -135,8 +135,11 @@ export default function App() {
   // Compute layout colors directly from the theme. `theme.useToken()` yields the
   // DEFAULT (light) tokens when called outside `<ConfigProvider>`, which is why the
   // sidebar and content could end up in different palettes.
-  const contentBg = isDark ? "#111213" : "#f0f2f5";
-  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
+  // Surface/border come from the theme CSS vars (one source). Content = base
+  // surface; the sidebar and panels use a raised surface so the shell reads as
+  // two planes instead of one flat slab (the core fix for "monotonous").
+  const contentBg = "var(--surface)";
+  const borderColor = "var(--border)";
 
   return (
     <div data-theme={isDark ? "dark" : "light"}>
@@ -150,8 +153,8 @@ export default function App() {
               // out in both themes while letting the layout background show through,
               // instead of a hard solid that fights the theme. Driven via the token
               // so antd's own CSS-in-JS can't overwrite it.
-              itemSelectedBg: isDark ? "rgba(76, 155, 250, 0.28)" : "rgba(22, 119, 255, 0.18)",
-              itemSelectedColor: isDark ? "rgba(255, 255, 255, 0.92)" : "#1677ff",
+              itemSelectedBg: isDark ? "rgba(22, 119, 255, 0.28)" : "rgba(22, 119, 255, 0.18)",
+              itemSelectedColor: isDark ? "rgba(255, 255, 255, 0.92)" : "#0958d9",
             },
           },
         }}
@@ -169,7 +172,7 @@ export default function App() {
             ref={siderRef}
             style={{
               width: collapsed ? 48 : sidebarWidth,
-              background: "transparent",
+              background: "var(--surface)",
               borderRight: `1px solid ${borderColor}`,
               height: "100vh",
               position: "fixed",
@@ -193,8 +196,13 @@ export default function App() {
                           width: 32,
                           height: 32,
                           borderRadius: 8,
-                          border: selected?.connectionId === c.id ? "2px solid #1677ff" : "1px solid rgba(128,128,128,0.3)",
-                          background: c.color ?? "#4C9BFA",
+                          border:
+                            selected?.connectionId === c.id
+                              ? isDark
+                                ? "2px solid rgba(255,255,255,0.9)"
+                                : "2px solid rgba(0,0,0,0.7)"
+                              : "1px solid var(--border-strong)",
+                          background: c.color ?? "#1677ff",
                           color: "#fff",
                           fontSize: 10,
                           fontWeight: 600,
@@ -243,12 +251,13 @@ export default function App() {
               />
             )}
             <div
+              className="splitter splitter-v"
               onMouseDown={() => {
                 dragging.current = true;
                 document.body.style.cursor = "col-resize";
                 document.body.classList.add("dragging");
               }}
-              style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 10 }}
+              style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", zIndex: 10 }}
             />
           </div>
 
@@ -268,8 +277,11 @@ export default function App() {
                   <DatabaseOutlined className="empty-state-icon" />
                   <Text style={{ fontSize: 15, fontWeight: 600 }}>Super Redis</Text>
                   <Text type="secondary" style={{ fontSize: 13 }}>
-                    {locale === "zh-CN" ? "Choose a connection from the sidebar" : "Choose a connection from the sidebar"}
+                    {locale === "zh-CN" ? "从左侧选择一个连接开始" : "Choose a connection from the sidebar"}
                   </Text>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)} style={{ marginTop: 4 }}>
+                    {locale === "zh-CN" ? "添加连接" : "Add connection"}
+                  </Button>
                 </div>
               )}
             </Content>
