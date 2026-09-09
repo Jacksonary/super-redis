@@ -70,9 +70,6 @@ export const api = {
   selectDatabase(connId: string, db: number): Promise<{ ok: boolean; db: number }> {
     return invoke("select_database", { connId, db });
   },
-  setReadonly(connId: string, readonly: boolean): Promise<{ ok: boolean }> {
-    return invoke("set_readonly", { connId, readonly });
-  },
   getConnectionState(connId: string): Promise<{ ok: boolean; status: string }> {
     return invoke("get_connection_state", { connId });
   },
@@ -199,7 +196,7 @@ export const api = {
     db: number,
     key: string,
     valueType: string,
-    opts: { value?: string; field?: string; score?: number; ttl?: number } = {}
+    opts: { value?: string; fields?: string[]; values?: string[]; scores?: number[]; ttl?: number } = {}
   ): Promise<{ ok: boolean }> {
     return invoke("create_key", {
       connId,
@@ -207,8 +204,9 @@ export const api = {
       key,
       valueType,
       value: opts.value ?? null,
-      field: opts.field ?? null,
-      score: opts.score ?? null,
+      fields: opts.fields ?? null,
+      values: opts.values ?? null,
+      scores: opts.scores ?? null,
       ttl: opts.ttl ?? null,
     });
   },

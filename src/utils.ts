@@ -3,6 +3,27 @@ import { useLayoutEffect, useRef, useState } from "react";
 /** Measure a flex-growing container so an antd Table can fill it (the app's
  * panels are resizable, so a hardcoded `calc(100vh - Npx)` scroll offset does
  * not match the available height). */
+/** Connection color: keep the preset as-is on light, nudge very-dark presets
+ * lighter on dark so they stay legible. Shared so the sidebar rows, the group
+ * bars, and the collapsed rail use the SAME tuned color. */
+export function tuneConnectionColor(hex: string | null | undefined, isDark: boolean): string | null | undefined {
+  if (!hex) return hex;
+  if (!isDark) return hex;
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (lum >= 95) return hex;
+  const k = 0.45;
+  const lr = Math.round(r + (255 - r) * k);
+  const lg = Math.round(g + (255 - g) * k);
+  const lb = Math.round(b + (255 - b) * k);
+  return `#${((lr << 16) | (lg << 8) | lb).toString(16).padStart(6, "0")}`;
+}
+
 export function useContainerHeight<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null);
   const [h, setH] = useState(200);
@@ -15,6 +36,33 @@ export function useContainerHeight<T extends HTMLElement = HTMLDivElement>() {
     return () => ro.disconnect();
   }, []);
   return [ref, h] as const;
+}
+
+/** Measure the container so an antd Table's scroll body fits without clipping
+ * the last row. Unlike the raw container height, this subtracts the table HEADER
+ * and PAGINATION heights, because `scroll.y` constrains ONLY the body — if you
+ * pass the full container height, the extra header+pagination push the last row
+ * past the bottom edge and it gets cut in half. */
+export function useTableBodyHeight<T extends HTMLElement = HTMLDivElement>() {
+  const ref = useRef<T>(null);
+  const [bodyH, setBodyH] = useState(200);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const compute = () => {
+      const wrapper = el.querySelector(".ant-table-wrapper") as HTMLElement | null;
+      const header = wrapper?.querySelector(".ant-table-thead") as HTMLElement | null;
+      const pagination = el.querySelector(".ant-pagination") as HTMLElement | null;
+      const headerH = header?.offsetHeight ?? 0;
+      const paginationH = pagination?.offsetHeight ?? 0;
+      setBodyH(Math.max(60, el.clientHeight - headerH - paginationH));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, bodyH] as const;
 }
 
 export function formatBytes(bytes: number | null | undefined): string {

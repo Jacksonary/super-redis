@@ -4,16 +4,18 @@ import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons"
 import { message, modal } from "../antd-app";
 import type { HashField, SelectedTarget } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
+  readonly?: boolean;
 }
 
 const PAGE = 300;
 
-export function HashViewer({ target, currentKey, refreshSignal }: Props) {
+export function HashViewer({ target, currentKey, refreshSignal, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const [fields, setFields] = useState<HashField[]>([]);
   const [total, setTotal] = useState(0);
@@ -105,7 +107,7 @@ export function HashViewer({ target, currentKey, refreshSignal }: Props) {
     <div className="value-viewer" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Space>
-          <Button size="small" type="primary" onClick={() => setAddOpen(true)}>Add field</Button>
+          <Button size="small" type="primary" disabled={readonly} onClick={() => setAddOpen(true)}>Add field</Button>
           {cursor !== 0 && (
             <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>Load more</Button>
           )}
@@ -126,19 +128,19 @@ export function HashViewer({ target, currentKey, refreshSignal }: Props) {
         size="small"
         rowKey="field"
         columns={[
-          { title: <span>Field (Total: {total})</span>, dataIndex: "field", ellipsis: true, render: (v: string) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
-          { title: "Value", dataIndex: "value", ellipsis: true, render: (v: string) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
+          { title: <span>Field (Total: {total})</span>, dataIndex: "field", ellipsis: { showTitle: false }, render: (v: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
+          { title: "Value", dataIndex: "value", ellipsis: { showTitle: false }, render: (v: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
           {
             title: "Actions",
             width: 100,
             align: "center",
             render: (_, r) => (
               <Space size={4}>
-                <Tooltip title="Edit">
-                  <Button size="small" type="text" icon={<EditOutlined />} onClick={() => setEditing({ origField: r.field, field: r.field, value: r.value })} />
+                <Tooltip title={readonly ? "Edit (read-only)" : "Edit"}>
+                  <Button size="small" type="text" icon={<EditOutlined />} disabled={readonly} onClick={() => setEditing({ origField: r.field, field: r.field, value: r.value })} />
                 </Tooltip>
-                <Tooltip title="Delete">
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(r.field)} />
+                <Tooltip title={readonly ? "Delete (read-only)" : "Delete"}>
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={readonly} onClick={() => remove(r.field)} />
                 </Tooltip>
               </Space>
             ),
@@ -150,14 +152,14 @@ export function HashViewer({ target, currentKey, refreshSignal }: Props) {
         scroll={{ y: "calc(100vh - 340px)" }}
       />
 
-      <Modal open={addOpen} title="Add field" okText="OK" cancelText="Cancel" onOk={doAdd} onCancel={() => setAddOpen(false)}>
+      <Modal className="modal-title-divider" open={addOpen} title="Add field" okText="OK" cancelText="Cancel" onOk={doAdd} onCancel={() => setAddOpen(false)}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Input placeholder="field" value={newField} onChange={(e) => setNewField(e.target.value)} />
           <Input placeholder="value" value={newValue} onChange={(e) => setNewValue(e.target.value)} />
         </Space>
       </Modal>
 
-      <Modal open={!!editing} title={`Edit: ${editing?.origField}`} okText="Save" cancelText="Cancel" onOk={doEdit} onCancel={() => setEditing(null)}>
+      <Modal className="modal-title-divider" open={!!editing} title={`Edit: ${editing?.origField}`} okText="Save" cancelText="Cancel" onOk={doEdit} onCancel={() => setEditing(null)}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Input
             placeholder="field"

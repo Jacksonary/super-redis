@@ -55,7 +55,6 @@ pub fn run() {
             commands::connections::set_connection_group,
             commands::connections::test_connection,
             commands::connections::select_database,
-            commands::connections::set_readonly,
             commands::connections::get_connection_state,
             commands::connections::disconnect_connection,
             commands::connections::get_connection_status,
@@ -133,6 +132,15 @@ pub fn run() {
             commands::terminal::append_command_history,
             commands::terminal::clear_command_history,
         ])
+        .setup(|app| {
+            // TEMP: open devtools on dev builds so we can inspect the actual
+            // computed styles of the key-browser table cell (root-cause debugging).
+            #[cfg(debug_assertions)]
+            if let Some(w) = app.get_webview_window("main") {
+                w.open_devtools();
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

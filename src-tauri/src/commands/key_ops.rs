@@ -7,20 +7,45 @@ pub async fn create_key(
     key: String,
     value_type: String,
     value: Option<String>,
-    field: Option<String>,
-    score: Option<f64>,
+    // Multi-row payloads for the structured types. Fields are zebra-aligned with
+    // values (hash: HSET field value pair-by-pair; zset: score+member). For
+    // list/set, `values` holds the items and `fields`/`scores` are ignored.
+    fields: Option<Vec<String>>,
+    values: Option<Vec<String>>,
+    scores: Option<Vec<f64>>,
     ttl: Option<i64>,
 ) -> Result<serde_json::Value, String> {
     let s = session(&conn_id).await?;
     let value = value.unwrap_or_default();
-    let field = field.unwrap_or_default();
-    let score = score.unwrap_or(0.0);
+    let fields = fields.unwrap_or_default();
+    let values = values.unwrap_or_default();
+    let scores = scores.unwrap_or_default();
     let args: Vec<String> = match value_type.as_str() {
         "string" => vec!["SET".to_string(), key.clone(), value],
-        "hash" => vec!["HSET".to_string(), key.clone(), field, value],
-        "list" => vec!["RPUSH".to_string(), key.clone(), value],
-        "set" => vec!["SADD".to_string(), key.clone(), value],
-        "zset" => vec!["ZADD".to_string(), key.clone(), score.to_string(), value],
+        "hash" => {
+            let mut a = vec!["HSET".to_string(), key.clone()];
+            for (f, v) in fields.iter().zip(values.iter()) {
+                a.push(f.clone());
+                a.push(v.clone());
+            }
+            a
+        }
+        "list" | "set" => {
+            let mut a = vec![
+                if value_type == "list" { "RPUSH" } else { "SADD" }.to_string(),
+                key.clone(),
+            ];
+            a.extend(values.iter().cloned());
+            a
+        }
+        "zset" => {
+            let mut a = vec!["ZADD".to_string(), key.clone()];
+            for (sc, v) in scores.iter().zip(values.iter()) {
+                a.push(sc.to_string());
+                a.push(v.clone());
+            }
+            a
+        }
         other => return Err(format!("Unsupported key type: {other}")),
     };
     let _ = s.query(db, args).await?;

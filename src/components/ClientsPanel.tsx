@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Table, Button, Space, Tooltip } from "antd";
+import type { TableColumnsType } from "antd";
 import { ReloadOutlined, DisconnectOutlined } from "@ant-design/icons";
 import { message, modal } from "../antd-app";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
-import { useContainerHeight } from "../utils";
+import { useTableBodyHeight } from "../utils";
+import { TruncatedText } from "./TruncatedText";
+import { ResizableTitle, useResizableColumns } from "./ResizableTable";
 
 type Client = Record<string, string>;
 
@@ -12,7 +15,7 @@ export function ClientsPanel({ target }: { target: SelectedTarget }) {
   const [rows, setRows] = useState<Client[]>([]);
   const [selfId, setSelfId] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [fillRef, fillH] = useContainerHeight();
+  const [fillRef, bodyH] = useTableBodyHeight();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,6 +56,32 @@ export function ClientsPanel({ target }: { target: SelectedTarget }) {
     });
   };
 
+  const baseColumns: TableColumnsType<Client> = [
+    { title: "ID", dataIndex: "id", width: 70 },
+    { title: "Addr", dataIndex: "addr", width: 180, ellipsis: { showTitle: false }, render: (v: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
+    { title: "Name", dataIndex: "name", width: 120, ellipsis: { showTitle: false }, render: (v: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
+    { title: "DB", dataIndex: "db", width: 60 },
+    { title: "Cmd", dataIndex: "cmd", width: 90 },
+    { title: "Flags", dataIndex: "flags", width: 80 },
+    { title: "Idle", dataIndex: "idle", width: 70, align: "right", render: (v: string) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span> },
+    { title: "User", dataIndex: "user", width: 100, ellipsis: { showTitle: false }, render: (v: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
+    {
+      title: (
+        <Tooltip title="Refresh">
+          <Button size="small" type="text" icon={<ReloadOutlined />} loading={loading} onClick={load} />
+        </Tooltip>
+      ),
+      width: 60,
+      align: "center",
+      render: (_, r) => (
+        <Tooltip title="Kill client">
+          <Button size="small" type="text" danger icon={<DisconnectOutlined />} onClick={() => confirmKill(r.id)} />
+        </Tooltip>
+      ),
+    },
+  ];
+  const columns = useResizableColumns(baseColumns);
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 8, padding: 12, overflow: "hidden" }}>
       <div ref={fillRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
@@ -62,35 +91,13 @@ export function ClientsPanel({ target }: { target: SelectedTarget }) {
         dataSource={rows}
         loading={loading}
         pagination={{ pageSize: 50, size: "small" }}
-        scroll={{ y: fillH }}
-        style={{ height: fillH }}
+        scroll={{ y: bodyH }}
+        style={{ height: "100%" }}
         onRow={(r) => ({
           style: r.id === String(selfId) ? { background: "rgba(22,119,255,0.14)" } : {},
         })}
-        columns={[
-          { title: "ID", dataIndex: "id", width: 70 },
-          { title: "Addr", dataIndex: "addr", width: 180, ellipsis: { showTitle: true }, render: (v: string) => <Tooltip title={v}><span>{v}</span></Tooltip> },
-          { title: "Name", dataIndex: "name", width: 120, ellipsis: { showTitle: true }, render: (v: string) => <Tooltip title={v}><span>{v}</span></Tooltip> },
-          { title: "DB", dataIndex: "db", width: 60 },
-          { title: "Cmd", dataIndex: "cmd", width: 90 },
-          { title: "Flags", dataIndex: "flags", width: 80 },
-          { title: "Idle", dataIndex: "idle", width: 70, align: "right", render: (v: string) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span> },
-          { title: "User", dataIndex: "user", width: 100, ellipsis: { showTitle: true }, render: (v: string) => <Tooltip title={v}><span>{v}</span></Tooltip> },
-          {
-            title: (
-              <Tooltip title="Refresh">
-                <Button size="small" type="text" icon={<ReloadOutlined />} loading={loading} onClick={load} />
-              </Tooltip>
-            ),
-            width: 60,
-            align: "center",
-            render: (_, r) => (
-              <Tooltip title="Kill client">
-                <Button size="small" type="text" danger icon={<DisconnectOutlined />} onClick={() => confirmKill(r.id)} />
-              </Tooltip>
-            ),
-          },
-        ]}
+        columns={columns}
+        components={{ header: { cell: ResizableTitle } }}
       />
       </div>
     </div>

@@ -1,9 +1,13 @@
-import { useEffect, useCallback, useState, useLayoutEffect, useRef } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { Table, Button, Space, theme, Tooltip } from "antd";
+import type { TableColumnsType } from "antd";
 import { ReloadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { message, modal } from "../antd-app";
 import type { SelectedTarget, SlowlogEntry } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
+import { ResizableTitle, useResizableColumns } from "./ResizableTable";
+import { useTableBodyHeight } from "../utils";
 
 export function SlowlogPanel({ target }: { target: SelectedTarget }) {
   const [rows, setRows] = useState<SlowlogEntry[]>([]);
@@ -45,16 +49,43 @@ export function SlowlogPanel({ target }: { target: SelectedTarget }) {
 
   // Fill the available panel height (the bottom panel is resizable, so the table
   // height must follow the container instead of a hardcoded scroll offset).
-  const fillRef = useRef<HTMLDivElement>(null);
-  const [fillH, setFillH] = useState(200);
-  useLayoutEffect(() => {
-    const el = fillRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setFillH(el.clientHeight));
-    ro.observe(el);
-    setFillH(el.clientHeight);
-    return () => ro.disconnect();
-  }, []);
+  const [fillRef, fillH] = useTableBodyHeight();
+
+  const baseColumns: TableColumnsType<SlowlogEntry> = [
+    { title: "ID", dataIndex: "id", width: 70 },
+    {
+      title: "Duration (µs)",
+      dataIndex: "duration_us",
+      width: 110,
+      align: "right",
+      // Band the severity so slow commands read at a glance: >10ms red,
+      // 1-10ms amber, <1ms calm. Signal colors only — never every row.
+      render: (d: number) => (
+        <span style={{ color: d >= 10000 ? token.colorError : d >= 1000 ? token.colorWarning : token.colorTextSecondary, fontVariantNumeric: "tabular-nums" }}>
+          {d}
+        </span>
+      ),
+    },
+    { title: "Command", dataIndex: "command", width: 300, ellipsis: { showTitle: false }, render: (c: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c}</TruncatedText> },
+    { title: "Client", dataIndex: "client", width: 120, ellipsis: { showTitle: false }, render: (c: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c}</TruncatedText> },
+    {
+      title: (
+        <Space size={2}>
+          <Tooltip title="Refresh">
+            <Button size="small" type="text" icon={<ReloadOutlined />} onClick={load} />
+          </Tooltip>
+          <Tooltip title="Clear (server slow log)">
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={confirmClear} />
+          </Tooltip>
+        </Space>
+      ),
+      key: "spacer",
+      width: 76,
+      align: "center",
+      render: () => null,
+    },
+  ];
+  const columns = useResizableColumns(baseColumns);
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -62,45 +93,13 @@ export function SlowlogPanel({ target }: { target: SelectedTarget }) {
         <Table<SlowlogEntry>
           size="small"
           rowKey="id"
-          columns={[
-            { title: "ID", dataIndex: "id", width: 70 },
-            {
-              title: "Duration (µs)",
-              dataIndex: "duration_us",
-              width: 110,
-              align: "right",
-              // Band the severity so slow commands read at a glance: >10ms red,
-              // 1-10ms amber, <1ms calm. Signal colors only — never every row.
-              render: (d: number) => (
-                <span style={{ color: d >= 10000 ? token.colorError : d >= 1000 ? token.colorWarning : token.colorTextSecondary, fontVariantNumeric: "tabular-nums" }}>
-                  {d}
-                </span>
-              ),
-            },
-            { title: "Command", dataIndex: "command", ellipsis: { showTitle: true }, render: (c: string) => <Tooltip title={c}><span className="mono" style={{ fontSize: 12 }}>{c}</span></Tooltip> },
-            { title: "Client", dataIndex: "client", width: 120 },
-            {
-              title: (
-                <Space size={2}>
-                  <Tooltip title="Refresh">
-                    <Button size="small" type="text" icon={<ReloadOutlined />} onClick={load} />
-                  </Tooltip>
-                  <Tooltip title="Clear (server slow log)">
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={confirmClear} />
-                  </Tooltip>
-                </Space>
-              ),
-              key: "spacer",
-              width: 76,
-              align: "center",
-              render: () => null,
-            },
-          ]}
+          columns={columns}
+          components={{ header: { cell: ResizableTitle } }}
           dataSource={rows}
           loading={loading}
           pagination={false}
           scroll={{ y: fillH }}
-          style={{ height: fillH }}
+          style={{ height: "100%" }}
         />
       </div>
     </div>

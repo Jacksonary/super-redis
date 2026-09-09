@@ -134,14 +134,6 @@ pub async fn select_database(conn_id: String, db: i64) -> Result<serde_json::Val
 }
 
 #[tauri::command]
-pub async fn set_readonly(conn_id: String, readonly: bool) -> Result<serde_json::Value, String> {
-    let s = redisclient::get_session(&conn_id).await?;
-    let cmd = if readonly { "READONLY" } else { "READWRITE" };
-    let _ = s.query_str(s.conn.db, vec![cmd.to_string()]).await?;
-    Ok(serde_json::json!({ "ok": true }))
-}
-
-#[tauri::command]
 pub async fn get_connection_state(conn_id: String) -> Result<serde_json::Value, String> {
     let s = redisclient::get_session(&conn_id).await?;
     let _ = s.query_str(s.conn.db, vec!["PING".to_string()]).await?;

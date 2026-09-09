@@ -4,16 +4,18 @@ import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons"
 import { message, modal } from "../antd-app";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
+  readonly?: boolean;
 }
 
 const PAGE = 200;
 
-export function ListViewer({ target, currentKey, refreshSignal }: Props) {
+export function ListViewer({ target, currentKey, refreshSignal, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const [items, setItems] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -106,12 +108,13 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
           <Input
             value={pushVal}
             placeholder="value"
+            disabled={readonly}
             style={{ width: 220 }}
             onChange={(e) => setPushVal(e.target.value)}
             onPressEnter={() => push(false)}
           />
-          <Button size="small" onClick={() => push(true)}>LPUSH</Button>
-          <Button size="small" type="primary" onClick={() => push(false)}>RPUSH</Button>
+          <Button size="small" disabled={readonly} onClick={() => push(true)}>LPUSH</Button>
+          <Button size="small" type="primary" disabled={readonly} onClick={() => push(false)}>RPUSH</Button>
         </Space>
         <div style={{ flex: 1 }} />
         <Input
@@ -129,8 +132,8 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
         size="small"
         rowKey={(v, i) => `${i}`}
         columns={[
-          { title: <span>Index (Total: {total})</span>, align: "right", render: (_, __, i) => <span className="mono" style={{ fontSize: 12 }}>{page * PAGE + i}</span> },
-          { title: "Value", ellipsis: true, render: (_, v) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
+          { title: <span>Index (Total: {total})</span>, render: (_, __, i) => <span className="mono" style={{ fontSize: 12 }}>{page * PAGE + i}</span> },
+          { title: "Value", ellipsis: { showTitle: false }, render: (_, v) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
           {
             title: "Actions",
             width: 100,
@@ -139,11 +142,11 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
               const idx = page * PAGE + i;
               return (
                 <Space size={4}>
-                  <Tooltip title="Edit value">
-                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => editValue(v, idx)} />
+                  <Tooltip title={readonly ? "Edit value (read-only)" : "Edit value"}>
+                    <Button size="small" type="text" icon={<EditOutlined />} disabled={readonly} onClick={() => editValue(v, idx)} />
                   </Tooltip>
-                  <Tooltip title="Delete">
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(v, idx)} />
+                  <Tooltip title={readonly ? "Delete (read-only)" : "Delete"}>
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={readonly} onClick={() => remove(v, idx)} />
                   </Tooltip>
                 </Space>
               );
@@ -164,6 +167,7 @@ export function ListViewer({ target, currentKey, refreshSignal }: Props) {
         <Button size="small" disabled={(page + 1) * PAGE >= total} onClick={() => { setPage((p) => p + 1); load(page + 1); }}>Next</Button>
       </Space>
       <Modal
+        className="modal-title-divider"
         open={editIndex !== null}
         title={`Edit index ${editIndex}`}
         okText="Save"

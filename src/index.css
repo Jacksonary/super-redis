@@ -112,6 +112,25 @@ body {
   --type-rejson: #d4b106;
 }
 
+/* Resizable column handles (hand-written, like the app's other splitters): a
+   subtle vertical line on a header cell's right edge, shown on hover. */
+.ant-table-thead > tr > th {
+  position: relative;
+}
+.ant-table-thead > tr > th > .col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+}
+.ant-table-thead > tr > th > .col-resize-handle:hover,
+.ant-table-thead > tr > th > .col-resize-handle:active {
+  background: rgba(22, 119, 255, 0.12);
+}
+
 /* Monospace for keys/values/terminal/stat columns: prefer a distinctive,
    legible mono when available, and make digits align in tabular columns. */
 .mono {
@@ -140,15 +159,14 @@ body {
    the SAME palette (antd's table-row and tree-node selected backgrounds differ).
    Row height is pinned so flat and tree rows match (they otherwise come from
    different antd tokens: table cellPaddingXS vs tree titleHeight). */
-.key-browser .ant-table-tbody > tr {
+body .key-browser .ant-table-tbody > tr {
   cursor: pointer;
-  height: 30px;
+  height: 24px;
 }
-.key-browser .ant-table-tbody > tr > td {
-  height: 30px !important;
-  padding-block: 3px 3px !important;
-  line-height: 24px !important;
-}
+/* The flat key browser is an antd VIRTUAL table — its rows are <div>-rendered and
+   have no real <td>, so cell-level CSS (vertical-align / padding) cannot target it.
+   Row height is controlled solely by the `cellPaddingBlockSM` token; content
+   alignment is antd's default (middle). Nothing to override here. */
 .key-browser .ant-table-tbody > tr:hover > td {
   background: rgba(22, 119, 255, 0.10) !important;
 }
@@ -173,32 +191,37 @@ body {
   flex: 1 1 auto;
   min-width: 0;
 }
-.key-browser .key-tree .ant-tree-treenode {
+/* antd v5 injects Tree styles via CSS-in-JS with high specificity — to override
+   them reliably we need `body`-level specificity + !important, not bare classes. */
+body .key-browser .key-tree .ant-tree-treenode {
   width: 100%;
-  padding-right: 8px;
+  height: 28px !important;
+  padding: 0 8px 0 6px !important;
+  margin: 0 !important;
+  line-height: 24px !important;
   border-bottom: 1px solid var(--border-hairline);
 }
-.key-browser .key-tree .ant-tree-treenode .ant-tree-node-content-wrapper {
+body .key-browser .key-tree .ant-tree-treenode .ant-tree-node-content-wrapper {
   border-radius: 4px;
-  height: 30px !important;
+  height: 28px !important;
   padding-block: 0 !important;
   display: flex !important;
   align-items: center !important;
-  line-height: 24px !important; /* match the flat table cell line-height */
+  line-height: 24px !important;
 }
-.key-browser .key-tree .ant-tree-treenode .ant-tree-node-content-wrapper .ant-tree-title {
-  line-height: 24px;
+body .key-browser .key-tree .ant-tree-treenode .ant-tree-node-content-wrapper .ant-tree-title {
+  line-height: 24px !important;
 }
-.key-browser .key-tree .ant-tree-node-content-wrapper:hover {
+body .key-browser .key-tree .ant-tree-node-content-wrapper:hover {
   background: rgba(22, 119, 255, 0.10) !important;
 }
-.key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
+body .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
   background: rgba(22, 119, 255, 0.20) !important;
 }
-[data-theme="dark"] .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
+[data-theme="dark"] body .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
   color: rgba(255, 255, 255, 0.92) !important;
 }
-[data-theme="light"] .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
+[data-theme="light"] body .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
   color: #1f1f1f !important;
 }
 
@@ -263,14 +286,36 @@ body {
   border-radius: 4px;
 }
 
-/* Divider between the modal title bar and the settings content. */
-.settings-modal .ant-modal-body {
-  border-top: 1px solid var(--border);
+/* Divider between the modal title bar and the settings content. antd renders
+   these modals in a body-level portal OUTSIDE <div data-theme>, so the
+   `[data-theme="dark"]` scoped rules below never match. The color therefore comes
+   from `--modal-divider`, which App.tsx sets on `<html>` (:root) — the one node all
+   portals inherit — so the divider follows the real theme instead of defaulting to
+   the bright `#d9d9d9` that showed as a thick white bar on dark. */
+.settings-modal .ant-modal-header,
+.modal-title-divider .ant-modal-header {
+  border-bottom: none;
+}
+.settings-modal .ant-modal-body,
+.modal-title-divider .ant-modal-body {
+  border-top: 1px solid var(--modal-divider, #d9d9d9);
   padding-top: 16px;
 }
 
 .settings-modal .ant-form-item {
   margin-bottom: 12px;
+}
+
+/* Keep switches and their companion text on the same baseline as the field label.
+   antd sizes the Switch with a fixed height and lets it sit below the text
+   baseline, which pushes the toggle (e.g. "Theme", "Allow multiple instances")
+   down a few px relative to the label — visible as misalignment. Also give the
+   input side a consistent min-height so the "Light/Dark" label wraps the toggle
+   without changing row height. */
+.settings-modal .ant-form-item .ant-form-item-control-input-content {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
 }
 
 /* Connection form: the "Advanced options" ghost collapse must align flush-left
@@ -302,12 +347,6 @@ body {
   border-color: var(--border-strong) !important;
   box-shadow: none !important;
 }
-[data-theme="dark"] .conn-form .ant-input,
-[data-theme="dark"] .conn-form .ant-input-affix-wrapper,
-[data-theme="dark"] .conn-form .ant-input-number,
-[data-theme="dark"] .conn-form .ant-select-selector {
-  border-color: var(--border) !important;
-}
 .conn-form .ant-input:hover,
 .conn-form .ant-input-affix-wrapper:hover,
 .conn-form .ant-input-number:hover,
@@ -330,6 +369,14 @@ body {
   display: flex !important;
   align-items: center !important;
   line-height: normal !important;
+}
+
+/* Section dividers inside the connection form. The modal renders in a body-level
+   portal OUTSIDE <div data-theme>, so the `[data-theme]` rule below never matched
+   and the line fell back to bright `#d9d9d9` on dark. The color comes from
+   `--modal-divider`, which App.tsx sets on <html> (:root) for the portal to read. */
+.conn-form .ant-divider {
+  border-color: var(--modal-divider, #d9d9d9) !important;
 }
 
 /* Nested cascade group (Batch operation → Size → Interval): tighter spacing so

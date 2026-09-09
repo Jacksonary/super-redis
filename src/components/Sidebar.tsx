@@ -23,6 +23,8 @@ import type { ConnectionSummary, SelectedTarget } from "../types";
 import { api } from "../api";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ConnectionForm } from "./ConnectionForm";
+import { TruncatedText } from "./TruncatedText";
+import { tuneConnectionColor } from "../utils";
 
 const { Text } = Typography;
 
@@ -52,26 +54,6 @@ export function Sidebar(props: Props) {
   const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
   const { state: updateState, setState: setUpdateState, checking, recheck } = useUpdateCheck(__APP_VERSION__);
 
-  // On the dark theme, deep connection hues (Navy #003eb3, Violet #531dab, Indigo
-  // #2f54eb) read too dark against the near-black surface; nudge any very dark
-  // preset toward white so the connection tint stays legible. Light theme leaves
-  // the presets untouched (Yellow/Lime/Red already read fine there). Color-only.
-  function tuneConnectionColor(hex: string | null | undefined, isDark: boolean): string | undefined {
-    if (!hex || !isDark) return undefined;
-    const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
-    if (!m) return hex;
-    const n = parseInt(m[1], 16);
-    const r = (n >> 16) & 255;
-    const g = (n >> 8) & 255;
-    const b = n & 255;
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    if (lum >= 95) return hex; // already bright enough on dark
-    const k = 0.45;
-    const lr = Math.round(r + (255 - r) * k);
-    const lg = Math.round(g + (255 - g) * k);
-    const lb = Math.round(b + (255 - b) * k);
-    return `#${((lr << 16) | (lg << 8) | lb).toString(16).padStart(6, "0")}`;
-  }
   const modalOpenRef = useRef(false);
   const downloadingRef = useRef(false);
   const pendingUpdateRef = useRef<{ install: () => Promise<void> } | null>(null);
@@ -280,6 +262,7 @@ export function Sidebar(props: Props) {
             <Text type="secondary">{props.locale === "zh-CN" ? "No connections yet" : "No connections yet"}</Text>
           </div>
         )}
+        <div style={{ background: "var(--surface-raised)", borderRadius: 6, border: "1px solid var(--border)" }}>
         <List
           dataSource={groups}
           renderItem={([gid, conns]) => {
@@ -307,6 +290,7 @@ export function Sidebar(props: Props) {
                       fontSize: 12,
                       color: token.colorTextSecondary,
                       borderRadius: 6,
+                      borderBottom: "1px solid var(--border-hairline)",
                     }}
                   >
                     {collapsed ? (
@@ -314,11 +298,7 @@ export function Sidebar(props: Props) {
                     ) : (
                       <FolderOpenOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
                     )}
-                    <Tooltip title={gid}>
-                      <Text type="secondary" style={{ fontSize: 12, flex: 1, minWidth: 0 }} ellipsis>
-                        {gid}
-                      </Text>
-                    </Tooltip>
+                    <TruncatedText style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: token.colorTextSecondary }}>{gid}</TruncatedText>
                     <Text type="secondary" style={{ fontSize: 11, flexShrink: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                       {conns.length}
                     </Text>
@@ -339,7 +319,7 @@ export function Sidebar(props: Props) {
                           setDragConnId(conn.id);
                         }}
                         onDragEnd={() => setDragConnId(null)}
-                        style={{ margin: "2px 0", ...(gid != null ? { paddingLeft: 18 } : {}) }}
+                        style={{ margin: "2px 0", borderBottom: "1px solid var(--border-hairline)", ...(gid != null ? { paddingLeft: 18 } : {}) }}
                       >
                         <Dropdown trigger={["contextMenu"]} menu={{ items: rowMenu(conn) }}>
                           <div
@@ -358,17 +338,15 @@ export function Sidebar(props: Props) {
                               // On dark theme, deep presets are nudged lighter first.
                               // Raise the identity tint so the connection color reads
                               // as data (was 9%/22% alpha — near-invisible on grey).
+                              // Clean row: selected = a light accent tint; otherwise
+                              // white for colored / transparent for none. The
+                              // connection color is a small dot (not a whole-row
+                              // wash), so multiple colored rows never look dirty.
                               background: active
-                                ? (conn.color ? `${tuneConnectionColor(conn.color, props.isDark)}50` : "rgba(22,119,255,0.12)")
+                                ? "rgba(22,119,255,0.12)"
                                 : conn.color
-                                ? `${tuneConnectionColor(conn.color, props.isDark)}26`
+                                ? "var(--surface-raised)"
                                 : "transparent",
-                              // Structural selection: a 3px left bar in the connection
-                              // color (or accent when none) so the active row reads as
-                              // selected by structure, not just a stronger wash.
-                              boxShadow: active
-                                ? `inset 3px 0 0 ${tuneConnectionColor(conn.color, props.isDark) ?? "#1677ff"}`
-                                : undefined,
                             }}
                           >
                             <span
@@ -399,11 +377,19 @@ export function Sidebar(props: Props) {
                                 flexShrink: 0,
                               }}
                             />
-                            <Tooltip title={conn.name}>
-                              <Text style={{ fontSize: 13, flex: 1, minWidth: 0 }} ellipsis>
-                                {conn.name}
-                              </Text>
-                            </Tooltip>
+                            <TruncatedText
+                              style={{
+                                fontSize: 13,
+                                flex: 1,
+                                minWidth: 0,
+                                color: conn.color ? tuneConnectionColor(conn.color, props.isDark) ?? undefined : undefined,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {conn.name}
+                            </TruncatedText>
                             {conn.readonly ? (
                               <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center" }}>
                                 <ReadOutlined style={{ fontSize: 11 }} />
@@ -421,11 +407,13 @@ export function Sidebar(props: Props) {
             );
           }}
         />
-        <div style={{ padding: "8px 12px" }}>
+        <div style={{ padding: "4px 8px" }}>
           <Button
-            type="dashed"
+            type="text"
             block
+            size="small"
             icon={<PlusOutlined />}
+            style={{ fontSize: 12 }}
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -433,6 +421,7 @@ export function Sidebar(props: Props) {
           >
             Add connection
           </Button>
+        </div>
         </div>
       </div>
 

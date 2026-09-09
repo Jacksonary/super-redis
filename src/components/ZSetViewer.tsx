@@ -4,16 +4,18 @@ import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons"
 import { message, modal } from "../antd-app";
 import type { SelectedTarget, ZSetItem } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
+  readonly?: boolean;
 }
 
 const PAGE = 300;
 
-export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
+export function ZSetViewer({ target, currentKey, refreshSignal, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const [items, setItems] = useState<ZSetItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -111,17 +113,19 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
           <Input
             value={newMember}
             placeholder="member"
+            disabled={readonly}
             style={{ width: 200 }}
             onChange={(e) => setNewMember(e.target.value)}
             onPressEnter={add}
           />
           <InputNumber
             value={newScore}
+            disabled={readonly}
             onChange={(v) => setNewScore(v ?? 0)}
             placeholder="score"
             style={{ width: 70 }}
           />
-          <Button size="small" type="primary" onClick={add}>Add</Button>
+          <Button size="small" type="primary" disabled={readonly} onClick={add}>Add</Button>
           {cursor !== 0 && (
             <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>Load more</Button>
           )}
@@ -143,18 +147,18 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
         rowKey="member"
         columns={[
           { title: "Score", dataIndex: "score", align: "right", minWidth: 90, render: (s: number) => <span className="mono" style={{ fontSize: 12 }}>{s}</span> },
-          { title: <span>Member (Total: {total})</span>, dataIndex: "member", ellipsis: true, render: (m: string) => <Tooltip title={m}><span style={{ fontSize: 12 }}>{m}</span></Tooltip> },
+          { title: <span>Member (Total: {total})</span>, dataIndex: "member", ellipsis: { showTitle: false }, render: (m: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{m}</TruncatedText> },
           {
             title: "Actions",
             width: 100,
             align: "center",
             render: (_, r) => (
               <Space size={4}>
-                <Tooltip title="Edit score">
-                  <Button size="small" type="text" icon={<EditOutlined />} onClick={() => editScore(r)} />
+                <Tooltip title={readonly ? "Edit score (read-only)" : "Edit score"}>
+                  <Button size="small" type="text" icon={<EditOutlined />} disabled={readonly} onClick={() => editScore(r)} />
                 </Tooltip>
-                <Tooltip title="Delete">
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(r.member)} />
+                <Tooltip title={readonly ? "Delete (read-only)" : "Delete"}>
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={readonly} onClick={() => remove(r.member)} />
                 </Tooltip>
               </Space>
             ),
@@ -166,6 +170,7 @@ export function ZSetViewer({ target, currentKey, refreshSignal }: Props) {
         scroll={{ y: "calc(100vh - 360px)" }}
       />
       <Modal
+        className="modal-title-divider"
         open={editTarget !== null}
         title={`Edit: ${editTarget}`}
         okText="Save"

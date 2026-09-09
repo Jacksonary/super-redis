@@ -4,16 +4,18 @@ import { SearchOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons"
 import { message, modal } from "../antd-app";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
+  readonly?: boolean;
 }
 
 const PAGE = 300;
 
-export function SetViewer({ target, currentKey, refreshSignal }: Props) {
+export function SetViewer({ target, currentKey, refreshSignal, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const [members, setMembers] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -108,11 +110,12 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
           <Input
             value={newMember}
             placeholder="member"
+            disabled={readonly}
             style={{ width: 220 }}
             onChange={(e) => setNewMember(e.target.value)}
             onPressEnter={add}
           />
-          <Button size="small" type="primary" onClick={add}>Add member</Button>
+          <Button size="small" type="primary" disabled={readonly} onClick={add}>Add member</Button>
           {cursor !== 0 && (
             <Button size="small" onClick={() => load(cursor, false)} disabled={loading}>Load more</Button>
           )}
@@ -133,18 +136,18 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
         size="small"
         rowKey={(v) => v}
         columns={[
-          { title: <span>Member (Total: {total})</span>, ellipsis: true, render: (_, v) => <Tooltip title={v}><span style={{ fontSize: 12 }}>{v}</span></Tooltip> },
+          { title: <span>Member (Total: {total})</span>, ellipsis: { showTitle: false }, render: (_, v) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
           {
             title: "Actions",
             width: 100,
             align: "center",
             render: (_, v) => (
               <Space size={4}>
-                <Tooltip title="Rename">
-                  <Button size="small" type="text" icon={<EditOutlined />} onClick={() => rename(v)} />
+                <Tooltip title={readonly ? "Rename (read-only)" : "Rename"}>
+                  <Button size="small" type="text" icon={<EditOutlined />} disabled={readonly} onClick={() => rename(v)} />
                 </Tooltip>
-                <Tooltip title="Delete">
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(v)} />
+                <Tooltip title={readonly ? "Delete (read-only)" : "Delete"}>
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={readonly} onClick={() => remove(v)} />
                 </Tooltip>
               </Space>
             ),
@@ -156,6 +159,7 @@ export function SetViewer({ target, currentKey, refreshSignal }: Props) {
         scroll={{ y: "calc(100vh - 360px)" }}
       />
       <Modal
+        className="modal-title-divider"
         open={renameTarget !== null}
         title="Rename member"
         okText="Rename"

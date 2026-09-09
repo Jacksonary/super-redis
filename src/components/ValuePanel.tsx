@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Dropdown, Input, Spin, Tooltip, Typography, Modal, Space, theme } from "antd";
 import { message, modal } from "../antd-app";
-import { CopyOutlined, CheckOutlined, ReloadOutlined, DeleteOutlined, ClockCircleOutlined, LinkOutlined } from "@ant-design/icons";
+import { CopyOutlined, CheckOutlined, ReloadOutlined, DeleteOutlined, ClockCircleOutlined, LinkOutlined, CloseOutlined } from "@ant-design/icons";
 import type { KeyInfo, SelectedTarget } from "../types";
 import { api } from "../api";
 import { StringViewer } from "./StringViewer";
@@ -10,17 +10,20 @@ import { ListViewer } from "./ListViewer";
 import { SetViewer } from "./SetViewer";
 import { ZSetViewer } from "./ZSetViewer";
 import { StreamViewer } from "./StreamViewer";
+import { TruncatedText } from "./TruncatedText";
 
 const { Text } = Typography;
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
+  /** Read-only connection: suppress every key/value-writing action (TTL/delete/unlink). */
+  readonly?: boolean;
   onDelete?: () => void;
   onMissing?: () => void;
 }
 
-export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
+export function ValuePanel({ target, currentKey, readonly = false, onDelete, onMissing }: Props) {
   const { connectionId: connId, db } = target;
   // Hooks must all run before any conditional return (the `loading` early-return
   // below) — themed token access lives here so the hook count stays stable.
@@ -30,6 +33,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
   const [loading, setLoading] = useState(true);
   const [ttlEditing, setTtlEditing] = useState(false);
   const [ttlSecs, setTtlSecs] = useState("");
+  const [ttlInvalid, setTtlInvalid] = useState(false);
   const [keyHover, setKeyHover] = useState(false);
   const [refreshSignal, setRefreshSignal] = useState(0);
 
@@ -58,6 +62,7 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
   };
 
   const saveTtl = async () => {
+    if (ttlInvalid) return;
     const secs = Number(ttlSecs);
     if (Number.isNaN(secs)) return;
     try {
@@ -152,9 +157,9 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
     items: [
       { key: "copy", label: "Copy key", icon: <CopyOutlined />, onClick: copyKey },
       { key: "refresh", label: "Refresh", icon: <ReloadOutlined />, onClick: refresh },
-      { key: "ttl", label: "Set TTL", icon: <ClockCircleOutlined />, onClick: () => { setTtlSecs(String(meta ? meta.ttl : "")); setTtlEditing(true); } },
+      { key: "ttl", label: "Set TTL", icon: <ClockCircleOutlined />, disabled: readonly, tooltip: readonly ? "Read-only connection" : undefined, onClick: () => { setTtlSecs(String(meta ? meta.ttl : "")); setTtlEditing(true); } },
       { type: "divider" as const },
-      { key: "delete", label: "Delete key", icon: <DeleteOutlined />, danger: true, onClick: confirmDelete },
+      { key: "delete", label: "Delete key", icon: <DeleteOutlined />, danger: true, disabled: readonly, tooltip: readonly ? "Read-only connection" : undefined, onClick: confirmDelete },
     ],
   };
 
@@ -164,24 +169,21 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {/* Key takes the flexible remainder; Type/TTL size to their content. */}
         <span style={{ fontSize: 12, color: "inherit", flexShrink: 0 }}>Key:</span>
-        <Tooltip title={currentKey} placement="bottom">
-          <span
-            onMouseEnter={() => setKeyHover(true)}
-            onMouseLeave={() => setKeyHover(false)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, flex: "0 1 auto", overflow: "hidden" }}
-          >
-            <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "100%", flex: "1 1 auto", minWidth: 0 }}>{currentKey}</span>
-            <Button
-              type="text"
-              size="small"
-              icon={<CopyOutlined />}
-              style={{ opacity: keyHover ? 1 : 0.001, transition: "opacity .15s", flexShrink: 0 }}
-              onClick={copyKey}
-            />
-          </span>
-        </Tooltip>
+        <span
+          onMouseEnter={() => setKeyHover(true)}
+          onMouseLeave={() => setKeyHover(false)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, flex: "0 1 auto", overflow: "hidden" }}
+        >
+          <TruncatedText style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "100%", flex: "1 1 auto", minWidth: 0 }}>{currentKey}</TruncatedText>
+          <Button
+            type="text"
+            size="small"
+            icon={<CopyOutlined />}
+            style={{ opacity: keyHover ? 1 : 0.001, transition: "opacity .15s", flexShrink: 0 }}
+            onClick={copyKey}
+          />
+        </span>
         <span style={{ fontSize: 12, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: typeHue, flexShrink: 0 }} />
           <span>Type:</span>
           <span style={{ color: typeHue }}>{type || "none"}</span>
         </span>
@@ -193,17 +195,46 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
                 size="small"
                 style={{ width: 70 }}
                 value={ttlSecs}
-                onChange={(e) => setTtlSecs(e.target.value)}
+                status={ttlInvalid ? "error" : undefined}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setTtlSecs(v);
+                  // Empty (persist) or -1 (permanent) are allowed; otherwise a non-negative integer.
+                  setTtlInvalid(v !== "" && v !== "-1" && !(Number.isInteger(Number(v)) && Number(v) >= 0));
+                }}
                 autoFocus
                 onPressEnter={saveTtl}
+                onBlur={() => setTtlEditing(false)}
               />
-              <Button type="text" size="small" icon={<CheckOutlined />} onClick={saveTtl} />
+              <Button
+                type="text"
+                size="small"
+                disabled={ttlInvalid}
+                icon={<CheckOutlined />}
+                onMouseDown={(e) => {
+                  // mousedown fires before the input's blur, so save and keep the
+                  // editing state (don't let blur cancel it first).
+                  e.preventDefault();
+                  void saveTtl();
+                }}
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<CloseOutlined />}
+                onMouseDown={(e) => {
+                  // Cancel: exit editing without saving.
+                  e.preventDefault();
+                  setTtlEditing(false);
+                }}
+              />
             </>
           ) : (
             <Button
               type="link"
               size="small"
-              style={{ padding: 0, height: "auto", color: ttlHue }}
+              disabled={readonly}
+              style={{ padding: 0, height: "auto", color: readonly ? token.colorTextDisabled : ttlHue }}
               onClick={() => {
                 setTtlSecs(String(meta ? meta.ttl : ""));
                 setTtlEditing(true);
@@ -219,23 +250,23 @@ export function ValuePanel({ target, currentKey, onDelete, onMissing }: Props) {
           <Tooltip title="Refresh">
             <Button size="small" icon={<ReloadOutlined />} onClick={refresh} />
           </Tooltip>
-          <Tooltip title="Delete (DEL)">
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={confirmDelete} />
+          <Tooltip title={readonly ? "Delete (DEL) (read-only)" : "Delete (DEL)"}>
+            <Button size="small" danger icon={<DeleteOutlined />} disabled={readonly} onClick={confirmDelete} />
           </Tooltip>
           {isLargeType && (
-            <Tooltip title="Unlink (async, non-blocking)">
-              <Button size="small" danger icon={<LinkOutlined />} onClick={confirmUnlink} />
+            <Tooltip title={readonly ? "Unlink (async, non-blocking) (read-only)" : "Unlink (async, non-blocking)"}>
+              <Button size="small" danger icon={<LinkOutlined />} disabled={readonly} onClick={confirmUnlink} />
             </Tooltip>
           )}
         </Space>
       </div>
 
-      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} sizeBytes={meta?.size ?? undefined} />}
-      {type === "hash" && <HashViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
-      {type === "list" && <ListViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
-      {type === "set" && <SetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
-      {type === "zset" && <ZSetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
-      {type === "stream" && <StreamViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} />}
+      {type === "string" && <StringViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} sizeBytes={meta?.size ?? undefined} readonly={readonly} />}
+      {type === "hash" && <HashViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} readonly={readonly} />}
+      {type === "list" && <ListViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} readonly={readonly} />}
+      {type === "set" && <SetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} readonly={readonly} />}
+      {type === "zset" && <ZSetViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} readonly={readonly} />}
+      {type === "stream" && <StreamViewer target={target} currentKey={currentKey} refreshSignal={refreshSignal} readonly={readonly} />}
       {type === "ReJSON" && <Text type="secondary">RedisJSON is coming in a later phase</Text>}
       </div>
     </Dropdown>

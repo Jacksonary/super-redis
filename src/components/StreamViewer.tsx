@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Input, Button, Space, Modal, Tooltip, theme } from "antd";
+import { Table, Input, Button, Space, Modal, theme } from "antd";
 import { message, modal } from "../antd-app";
 import { DeleteOutlined } from "@ant-design/icons";
 import type { SelectedTarget, StreamEntry } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
 
 interface Props {
   target: SelectedTarget;
   currentKey: string;
   refreshSignal?: number;
+  readonly?: boolean;
 }
 
-export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
+export function StreamViewer({ target, currentKey, refreshSignal, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const { token } = theme.useToken();
   const [entries, setEntries] = useState<StreamEntry[]>([]);
@@ -87,8 +89,8 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
     <div className="value-viewer" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
       <Space>
         <span style={{ fontSize: 12, opacity: 0.7, fontVariantNumeric: "tabular-nums" }}>Length: {length}</span>
-        <Button size="small" type="primary" onClick={() => setAddOpen(true)}>Add entry</Button>
-        <Button size="small" onClick={() => setGroupOpen(true)}>New group</Button>
+        <Button size="small" type="primary" disabled={readonly} onClick={() => setAddOpen(true)}>Add entry</Button>
+        <Button size="small" disabled={readonly} onClick={() => setGroupOpen(true)}>New group</Button>
         <Button size="small" onClick={load}>Refresh</Button>
       </Space>
       {groups.length > 0 && (
@@ -98,9 +100,7 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
             return (
               <span key={g.name} style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: pendColor, flexShrink: 0 }} />
-                <Tooltip title={g.name}>
-                  <span className="mono" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
-                </Tooltip>
+                <TruncatedText className="mono" style={{ fontSize: 12, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{g.name}</TruncatedText>
                 <span style={{ color: token.colorTextTertiary, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{g.pending} pending</span>
               </span>
             );
@@ -115,18 +115,16 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
           {
             title: "Fields",
             dataIndex: "fields",
-            ellipsis: true,
+            ellipsis: { showTitle: false },
             render: (f: [string, string][]) => (
-              <Tooltip title={f.map(([k, v]) => `${k}=${v}`).join("\n")}>
-                <span style={{ fontSize: 12 }}>{f.map(([k, v]) => `${k}=${v}`).join("  ")}</span>
-              </Tooltip>
+              <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{f.map(([k, v]) => `${k}=${v}`).join("  ")}</TruncatedText>
             ),
           },
           {
             title: "Actions",
             width: 70,
             render: (_, r) => (
-              <Button size="small" type="text" icon={<DeleteOutlined />} onClick={() => confirmRemove(r.id)} />
+              <Button size="small" type="text" icon={<DeleteOutlined />} disabled={readonly} onClick={() => confirmRemove(r.id)} />
             ),
           },
         ]}
@@ -136,7 +134,7 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
         scroll={{ y: "calc(100vh - 360px)" }}
       />
 
-      <Modal open={addOpen} title="Add entry" okText="OK" cancelText="Cancel" onOk={addEntry} onCancel={() => setAddOpen(false)}>
+      <Modal className="modal-title-divider" open={addOpen} title="Add entry" okText="OK" cancelText="Cancel" onOk={addEntry} onCancel={() => setAddOpen(false)}>
         <Input.TextArea
           value={fieldsText}
           onChange={(e) => setFieldsText(e.target.value)}
@@ -147,7 +145,7 @@ export function StreamViewer({ target, currentKey, refreshSignal }: Props) {
         />
       </Modal>
 
-      <Modal open={groupOpen} title="New consumer group" okText="OK" cancelText="Cancel" onOk={createGroup} onCancel={() => setGroupOpen(false)}>
+      <Modal className="modal-title-divider" open={groupOpen} title="New consumer group" okText="OK" cancelText="Cancel" onOk={createGroup} onCancel={() => setGroupOpen(false)}>
         <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="group name" />
       </Modal>
     </div>

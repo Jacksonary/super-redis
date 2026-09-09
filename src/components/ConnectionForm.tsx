@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Modal, Form, Input, InputNumber, Select, Switch, Row, Col, Spin, Button, Collapse, Space, AutoComplete, Dropdown } from "antd";
+import { Modal, Form, Input, InputNumber, Select, Switch, Row, Col, Spin, Button, Collapse, Space, AutoComplete, Dropdown, Divider } from "antd";
 import { FolderOpenOutlined, DownOutlined } from "@ant-design/icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { Connection, ConnectionSummary } from "../types";
@@ -207,6 +207,7 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
       styles={{ body: { paddingTop: 8 } }}
     >
       <Form form={form} layout="vertical" size="small" requiredMark={false}>
+        <Divider style={{ margin: "0 0 10px" }} />
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="name" label="Name" style={{ marginBottom: 8 }}>
@@ -237,6 +238,7 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
           </Col>
         </Row>
 
+        <Divider style={{ margin: "12px 0 10px" }} />
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="user" label="Username (ACL)">
@@ -249,6 +251,7 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
             </Form.Item>
           </Col>
         </Row>
+        <Divider style={{ margin: "12px 0 10px" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingTop: 4 }}>
           <span style={{ fontSize: 14 }}>SSL/TLS</span>
           <Form.Item name="tls" valuePropName="checked" noStyle>
@@ -282,6 +285,7 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
           </>
         )}
 
+        <Divider style={{ margin: "12px 0 8px" }} />
         <Collapse ghost size="small" className="conn-advanced" expandIconPosition="end" style={{ marginTop: 8 }}>
           <Panel header="Advanced options" key="advanced">
             <Row gutter={12}>

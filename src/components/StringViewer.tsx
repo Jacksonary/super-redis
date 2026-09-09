@@ -16,9 +16,10 @@ interface Props {
   currentKey: string;
   refreshSignal?: number;
   sizeBytes?: number;
+  readonly?: boolean;
 }
 
-export function StringViewer({ target, currentKey, refreshSignal, sizeBytes }: Props) {
+export function StringViewer({ target, currentKey, refreshSignal, sizeBytes, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const { token } = theme.useToken();
   const [value, setValue] = useState("");
@@ -93,12 +94,12 @@ export function StringViewer({ target, currentKey, refreshSignal, sizeBytes }: P
         className="mono"
         style={{ flex: 1, minHeight: 0, resize: "none", fontSize: 12 }}
         value={shown}
-        onChange={(e) => editable && setValue(e.target.value)}
-        disabled={loading || !editable}
-        readOnly={!editable}
+        onChange={(e) => editable && !readonly && setValue(e.target.value)}
+        disabled={loading || !editable || readonly}
+        readOnly={!editable || readonly}
       />
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button size="small" onClick={save} disabled={loading || !editable} type="primary">Save</Button>
+        <Button size="small" onClick={save} disabled={loading || !editable || readonly} type="primary">Save</Button>
       </div>
       {editable && binary && (
         <div>

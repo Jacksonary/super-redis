@@ -9,6 +9,7 @@ import { ConnectionForm } from "./components/ConnectionForm";
 import type { AppSettings, ConnectionSummary, SelectedTarget, Task } from "./types";
 import { api } from "./api";
 import { getLocale, setLocale } from "./i18n";
+import { tuneConnectionColor } from "./utils";
 import { useRedisEvent } from "./useRedisEvents";
 import AntdAppBridge from "./antd-app";
 
@@ -68,6 +69,30 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.background = isDark ? "#111213" : "#f0f2f5";
     document.body.style.background = isDark ? "#111213" : "#f0f2f5";
+    // Push the theme CSS vars onto <html> (not just the nested [data-theme] div)
+    // so antd modals/popups — which render in a body-level portal OUTSIDE
+    // <div data-theme> — still resolve the same surface/border/type colors. This
+    // is what fixes the thick-bright divider + missing type hues in dialogs.
+    const s = document.documentElement.style;
+    if (isDark) {
+      s.setProperty("--surface", "#111213");
+      s.setProperty("--surface-raised", "#1a1c1f");
+      s.setProperty("--border", "rgba(255,255,255,0.12)");
+      s.setProperty("--border-strong", "rgba(255,255,255,0.18)");
+      s.setProperty("--border-hairline", "rgba(255,255,255,0.06)");
+      s.setProperty("--modal-divider", "rgba(255,255,255,0.14)");
+      s.setProperty("--accent", "#1668dc");
+      s.setProperty("--accent-ink", "#4080ff");
+    } else {
+      s.setProperty("--surface", "#f0f2f5");
+      s.setProperty("--surface-raised", "#ffffff");
+      s.setProperty("--border", "rgba(0,0,0,0.10)");
+      s.setProperty("--border-strong", "rgba(0,0,0,0.16)");
+      s.setProperty("--border-hairline", "rgba(0,0,0,0.06)");
+      s.setProperty("--modal-divider", "#d9d9d9");
+      s.setProperty("--accent", "#1677ff");
+      s.setProperty("--accent-ink", "#0958d9");
+    }
   }, [isDark]);
 
   const refreshConnections = useCallback(() => {
@@ -156,6 +181,13 @@ export default function App() {
               itemSelectedBg: isDark ? "rgba(22, 119, 255, 0.28)" : "rgba(22, 119, 255, 0.18)",
               itemSelectedColor: isDark ? "rgba(255, 255, 255, 0.92)" : "#0958d9",
             },
+            // Antd v5 Table cell height comes from this DESIGN TOKEN (not CSS), so
+            // global overrides can't shrink it. Tighten the small-size cell padding
+            // to compact the key-browser / value-viewer rows.
+            Table: {
+              cellPaddingBlockSM: 3,
+              cellPaddingInlineSM: 6,
+            },
           },
         }}
       >
@@ -202,7 +234,7 @@ export default function App() {
                                 ? "2px solid rgba(255,255,255,0.9)"
                                 : "2px solid rgba(0,0,0,0.7)"
                               : "1px solid var(--border-strong)",
-                          background: c.color ?? "#1677ff",
+                          background: c.color ? tuneConnectionColor(c.color, isDark) ?? "#1677ff" : "#1677ff",
                           color: "#fff",
                           fontSize: 10,
                           fontWeight: 600,
@@ -268,6 +300,7 @@ export default function App() {
                   key={`${selected.connectionId}-${selected.db}`}
                   target={selected}
                   connectionName={connections.find((c) => c.id === selected.connectionId)?.name ?? ""}
+                  readonly={connections.find((c) => c.id === selected.connectionId)?.readonly ?? false}
                   delimiter={appSettings?.keyDelimiter ?? ":"}
                   isDark={isDark}
                   onDbChange={(db) => changeDb(selected.connectionId, db)}

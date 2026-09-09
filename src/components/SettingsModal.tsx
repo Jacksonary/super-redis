@@ -104,12 +104,12 @@ export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, se
           </Form.Item>
         </div>
         <Form.Item label="Allow multiple instances">
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1 }}>
             <Switch
               checked={settings?.allowMultiInstance ?? false}
               onChange={(v) => saveSettings({ allowMultiInstance: v })}
             />
-            <Text type="secondary" style={{ fontSize: 11 }}>Restart required</Text>
+            <Text type="secondary" style={{ fontSize: 11, lineHeight: 1 }}>Restart required</Text>
           </span>
         </Form.Item>
 

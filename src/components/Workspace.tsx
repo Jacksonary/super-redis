@@ -8,10 +8,11 @@ import { ValuePanel } from "./ValuePanel";
 import { ConnInfoPanel } from "./ConnInfoPanel";
 import { TerminalTab } from "./TerminalTab";
 import { MonitorTab, type MonitorSub } from "./MonitorTab";
+import { TruncatedText } from "./TruncatedText";
 
 const { Text } = Typography;
 
-export function Workspace({ target, connectionName, delimiter, isDark, onDbChange }: { target: SelectedTarget; connectionName: string; delimiter: string; isDark: boolean; onDbChange: (db: number) => void }) {
+export function Workspace({ target, connectionName, readonly, delimiter, isDark, onDbChange }: { target: SelectedTarget; connectionName: string; readonly: boolean; delimiter: string; isDark: boolean; onDbChange: (db: number) => void }) {
   const borderColor = "var(--border)";
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [listReload, setListReload] = useState(0);
@@ -112,9 +113,7 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
           items={[
             {
               title: (
-                <Tooltip title={connectionName || "Connection"}>
-                  <Text ellipsis style={{ fontSize: 12, maxWidth: 220 }}>{connectionName || "Connection"}</Text>
-                </Tooltip>
+                <TruncatedText style={{ fontSize: 12, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{connectionName || "Connection"}</TruncatedText>
               ),
             },
             {
@@ -139,9 +138,7 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
             },
             ...(selectedKey
               ? [{ title: (
-                  <Tooltip title={selectedKey}>
-                    <Text className="mono" style={{ fontSize: 12, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedKey}</Text>
-                  </Tooltip>
+                  <TruncatedText className="mono" style={{ fontSize: 12, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedKey}</TruncatedText>
                 ) }]
               : []),
           ]}
@@ -158,7 +155,7 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
         <div style={{ width: `${splitRatio * 100}%`, minWidth: 260, borderRight: `1px solid ${borderColor}` }}>
-          <KeyBrowser target={target} delimiter={delimiter} onSelectKey={setSelectedKey} reloadSignal={listReload} />
+          <KeyBrowser target={target} delimiter={delimiter} onSelectKey={setSelectedKey} reloadSignal={listReload} readonly={readonly} isDark={isDark} />
         </div>
         <div
           className="splitter splitter-v"
@@ -171,6 +168,7 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
               target={target}
               currentKey={selectedKey}
               key={selectedKey}
+              readonly={readonly}
               onDelete={() => {
                 // Explicit delete: leave the detail panel.
                 setSelectedKey("");
@@ -301,7 +299,7 @@ export function Workspace({ target, connectionName, delimiter, isDark, onDbChang
             </Tooltip>
           )}
         </div>
-        {panelOpen && terminalOpen && <TerminalTab target={target} />}
+        {panelOpen && terminalOpen && <TerminalTab target={target} readonly={readonly} />}
         {panelOpen && monitorOpen && (
           <MonitorTab
             target={target}

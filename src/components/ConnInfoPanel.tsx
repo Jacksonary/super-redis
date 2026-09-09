@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Row, Col, Table, Input, Button, Typography, Tooltip, theme } from "antd";
+import { Card, Row, Col, Table, Input, Button, Typography, theme } from "antd";
 import { message } from "../antd-app";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import type { SelectedTarget } from "../types";
 import { api } from "../api";
+import { TruncatedText } from "./TruncatedText";
 
 const { Text } = Typography;
 
@@ -37,7 +38,7 @@ function CardList({ title, items, sections }: { title: string; items: [string, s
     <Card size="small" title={title}>
       {items.map(([label, section, key]) => (
         <div key={`${section}.${key}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", gap: 8, minWidth: 0 }}>
-          <Text style={{ fontSize: 11, color: token.colorTextTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "1 1 auto", minWidth: 0 }}>{label}</Text>
+          <TruncatedText style={{ fontSize: 11, color: token.colorTextTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "1 1 auto", minWidth: 0 }}>{label}</TruncatedText>
           <Text style={{ fontSize: 12, color: token.colorText, fontWeight: 500, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{pick(sections, section, key)}</Text>
         </div>
       ))}
@@ -140,8 +141,8 @@ export function ConnInfoPanel({ target }: { target: SelectedTarget }) {
           dataSource={filtered}
           loading={loading}
           columns={[
-            { title: "Key", dataIndex: "key", width: 280, ellipsis: true, render: (k: string) => <Tooltip title={k}><Text className="mono" style={{ fontSize: 12 }}>{k}</Text></Tooltip> },
-            { title: "Value", dataIndex: "value", ellipsis: { showTitle: true }, render: (v: string) => <Tooltip title={v}><Text style={{ fontSize: 12 }}>{v}</Text></Tooltip> },
+            { title: "Key", dataIndex: "key", width: 280, ellipsis: { showTitle: false }, render: (k: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{k}</TruncatedText> },
+            { title: "Value", dataIndex: "value", ellipsis: { showTitle: false }, render: (v: string) => <TruncatedText className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v}</TruncatedText> },
           ]}
         />
       </Card>

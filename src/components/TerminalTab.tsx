@@ -8,6 +8,9 @@ const { Text } = Typography;
 
 interface Props {
   target: SelectedTarget;
+  /** Read-only connection: the backend already blocks dangerous write commands;
+   * this only surfaces a hint banner. */
+  readonly?: boolean;
 }
 
 interface LogEntry {
@@ -18,7 +21,7 @@ interface LogEntry {
 
 const PROMPT = "#1677ff";
 
-export function TerminalTab({ target }: Props) {
+export function TerminalTab({ target, readonly = false }: Props) {
   const { connectionId: connId, db } = target;
   const { token } = theme.useToken();
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -106,6 +109,11 @@ export function TerminalTab({ target }: Props) {
         overflow: "hidden",
       }}
     >
+      {readonly && (
+        <div style={{ padding: "6px 10px", fontSize: 11, color: token.colorWarning, borderBottom: `1px solid ${token.colorSplit}`, flexShrink: 0 }}>
+          Read-only connection — dangerous write commands are blocked.
+        </div>
+      )}
       {/* Output stream — takes most of the height and scrolls */}
       <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "8px 10px", fontSize: 12, lineHeight: 1.5 }}>
         {log.length === 0 && (

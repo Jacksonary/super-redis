@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Progress, Tag, Popover, List, Typography, Tooltip } from "antd";
 import { NotificationOutlined, CloseOutlined } from "@ant-design/icons";
 import type { Task } from "../types";
+import { TruncatedText } from "./TruncatedText";
 
 const { Text } = Typography;
 
@@ -43,9 +44,7 @@ export function TaskPanel({ tasks, onDismiss }: Props) {
           >
             <List.Item.Meta
               title={
-                <Tooltip title={t.title}>
-                  <Text ellipsis style={{ fontSize: 12, maxWidth: 240 }}>{t.title}</Text>
-                </Tooltip>
+                <TruncatedText style={{ fontSize: 12, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</TruncatedText>
               }
               description={<Progress size="small" percent={t.progress} status={statusColor[t.status] as any} />}
             />
