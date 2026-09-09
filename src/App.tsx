@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Layout, theme, Typography, ConfigProvider, Tooltip, Button, App as AntApp } from "antd";
-import { DatabaseOutlined, MenuUnfoldOutlined, SettingOutlined, PlusOutlined } from "@ant-design/icons";
+import { MenuUnfoldOutlined, SettingOutlined, PlusOutlined } from "@ant-design/icons";
 import { Sidebar } from "./components/Sidebar";
+import { LogoMark } from "./components/LogoMark";
 import { Workspace } from "./components/Workspace";
 import { SettingsModal } from "./components/SettingsModal";
 import { TaskPanel } from "./components/TaskPanel";
@@ -307,7 +308,9 @@ export default function App() {
                 />
               ) : (
                 <div className="empty-state-wrap" style={{ height: "100vh", justifyContent: "center" }}>
-                  <DatabaseOutlined className="empty-state-icon" />
+                  <span className="empty-state-logo" style={{ color: "var(--logo-mark)" }}>
+                    <LogoMark size={110} />
+                  </span>
                   <Text style={{ fontSize: 15, fontWeight: 600 }}>Super Redis</Text>
                   <Text type="secondary" style={{ fontSize: 13 }}>
                     {locale === "zh-CN" ? "从左侧选择一个连接开始" : "Choose a connection from the sidebar"}

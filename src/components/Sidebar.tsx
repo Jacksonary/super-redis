@@ -51,6 +51,9 @@ export function Sidebar(props: Props) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   // Id of the connection currently being dragged, or null when idle.
   const [dragConnId, setDragConnId] = useState<string | null>(null);
+  // Drop target currently hovered: `group:<gid>` or `ungroup` or null. Drives the
+  // visible highlight so the user sees where a drop will land while dragging.
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
   const { state: updateState, setState: setUpdateState, checking, recheck } = useUpdateCheck(__APP_VERSION__);
 
@@ -251,10 +254,14 @@ export function Sidebar(props: Props) {
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
+          // Not over a group header (those stopPropagation), so this is the
+          // "move out of any group" drop surface.
+          setDropTarget("ungroup");
         }}
         onDrop={(e) => {
           e.preventDefault();
           void dropToGroup(null);
+          setDropTarget(null);
         }}
       >
         {groups.length === 0 && (
@@ -265,8 +272,7 @@ export function Sidebar(props: Props) {
         <div style={{ background: "var(--surface-raised)", borderRadius: 6, border: "1px solid var(--border)" }}>
         <List
           dataSource={groups}
-          renderItem={([gid, conns]) => {
-            const collapsed = gid != null && collapsedGroups.has(gid);
+          renderItem={([gid, conns]) => {            const collapsed = gid != null && collapsedGroups.has(gid);
             return (
               <div key={gid ?? "root"}>
                 {gid && (
@@ -274,12 +280,15 @@ export function Sidebar(props: Props) {
                     onClick={() => toggleGroup(gid)}
                     onDragOver={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       e.dataTransfer.dropEffect = "move";
+                      setDropTarget(`group:${gid}`);
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       void dropToGroup(gid);
+                      setDropTarget(null);
                     }}
                     style={{
                       display: "flex",
@@ -291,6 +300,14 @@ export function Sidebar(props: Props) {
                       color: token.colorTextSecondary,
                       borderRadius: 6,
                       borderBottom: "1px solid var(--border-hairline)",
+                      // Drop-target feedback: a filled accent wash + a left accent
+                      // bar so it's obvious dropping here moves into THIS group.
+                      background: dropTarget === `group:${gid}` ? "rgba(22,119,255,0.14)" : "transparent",
+                      boxShadow:
+                        dropTarget === `group:${gid}`
+                          ? `inset 3px 0 0 ${props.isDark ? "#4080ff" : "#1677ff"}`
+                          : "none",
+                      transition: "background-color .12s ease",
                     }}
                   >
                     {collapsed ? (
@@ -317,9 +334,20 @@ export function Sidebar(props: Props) {
                           e.dataTransfer.setData("text/plain", conn.id);
                           e.dataTransfer.effectAllowed = "move";
                           setDragConnId(conn.id);
+                          setDropTarget(null);
                         }}
-                        onDragEnd={() => setDragConnId(null)}
-                        style={{ margin: "2px 0", borderBottom: "1px solid var(--border-hairline)", ...(gid != null ? { paddingLeft: 18 } : {}) }}
+                        onDragEnd={() => {
+                          setDragConnId(null);
+                          setDropTarget(null);
+                        }}
+                        style={{
+                          margin: "2px 0",
+                          borderBottom: "1px solid var(--border-hairline)",
+                          ...(gid != null ? { paddingLeft: 18 } : {}),
+                          // The row being dragged fades so it reads as "lifted" —
+                          // otherwise the OS ghost sits on top of a fully-opaque row.
+                          opacity: dragConnId === conn.id ? 0.35 : 1,
+                        }}
                       >
                         <Dropdown trigger={["contextMenu"]} menu={{ items: rowMenu(conn) }}>
                           <div
@@ -408,6 +436,23 @@ export function Sidebar(props: Props) {
           }}
         />
         <div style={{ padding: "4px 8px" }}>
+          {dragConnId && (
+            <div
+              style={{
+                marginBottom: 4,
+                padding: "6px 10px",
+                borderRadius: 6,
+                fontSize: 12,
+                textAlign: "center",
+                border: `1px dashed ${dropTarget === "ungroup" ? (props.isDark ? "#4080ff" : "#1677ff") : "var(--border-strong)"}`,
+                background: dropTarget === "ungroup" ? "rgba(22,119,255,0.14)" : "transparent",
+                color: dropTarget === "ungroup" ? (props.isDark ? "#4080ff" : "#1677ff") : token.colorTextTertiary,
+                transition: "background-color .12s ease, border-color .12s ease",
+              }}
+            >
+              {dropTarget === "ungroup" ? "Release to remove from all groups" : "Drop here to move out of groups"}
+            </div>
+          )}
           <Button
             type="text"
             block

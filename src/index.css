@@ -66,12 +66,7 @@ body {
 /* Signal Desk palette — ONE committed accent (antd blue), a two-plane surface
    ladder, and a three-step border scale. Dark and light are tuned partners, not
    a hue inversion: the accent adjusts per theme, and the raised surface carries
-   the elevation (lighter on dark, white+shadow on light). The true red is demoted
-   to --brand-mark, reserved for the wordmark/empty-state mark only, so it never
-   competes with the error/signal palette. */
-:root {
-  --brand-mark: #dc382d; /* wordmark + empty-state brand mark only */
-}
+   the elevation (lighter on dark, white+shadow on light). */
 [data-theme="dark"] {
   --surface: #111213;                 /* base/layout */
   --surface-raised: #1a1c1f;          /* sidebar, panels, raised cards — lighter than base */
@@ -82,6 +77,9 @@ body {
   --border-hairline: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.12);
   --border-strong: rgba(255, 255, 255, 0.18);
+  /* App logo mark — neutral so it never fights the accent. Dark theme reads it
+     as a light grey blueprint. */
+  --logo-mark: #b6c0cd;
   /* Key-type color family — distinct hues for the structured types, kept apart
      from the accent (blue), the health signals (green/amber/red), and readable
      on a near-black surface. */
@@ -103,6 +101,8 @@ body {
   --border-hairline: rgba(0, 0, 0, 0.06);
   --border: rgba(0, 0, 0, 0.10);
   --border-strong: rgba(0, 0, 0, 0.16);
+  /* Light theme: a quiet blue-grey — visibly a mark, not a signal color. */
+  --logo-mark: #4b5563;
   --type-string: #8c8c8c;
   --type-hash: #722ed1;
   --type-list: #08979c;
@@ -400,10 +400,9 @@ body .key-browser .key-tree .ant-tree-node-content-wrapper.ant-tree-node-selecte
   gap: 8px;
 }
 
-.empty-state-icon {
-  font-size: 48px;
-  opacity: 0.35;
-  color: var(--brand-mark);
+.empty-state-logo {
+  display: inline-flex;
+  margin-bottom: 4px;
 }
 
 ::-webkit-scrollbar {

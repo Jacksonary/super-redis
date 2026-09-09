@@ -34,8 +34,21 @@ fn kr_entry(key: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(KEYRING_SERVICE, key).map_err(|e| format!("keyring: {e}"))
 }
 
+/// Store a secret, but SKIP the write when the value is unchanged.
+///
+/// macOS keychain treats every `set_password` as a fresh ACL grant and re-prompts
+/// for authorization, and an unsigned dev app can't be remembered. Since save
+/// paths rewrite every connection's secrets, writing unchanged values triggers a
+/// burst of password prompts on every config edit. Comparing first means only a
+/// genuinely new/changed secret touches the keychain (a no-op edit is free).
 fn kr_store(key: &str, value: &str) -> Result<(), String> {
-    kr_entry(key)?
+    let entry = kr_entry(key)?;
+    if let Ok(existing) = entry.get_password() {
+        if existing == value {
+            return Ok(()); // unchanged — nothing to persist, no prompt
+        }
+    }
+    entry
         .set_password(value)
         .map_err(|e| format!("keyring store: {e}"))
 }
