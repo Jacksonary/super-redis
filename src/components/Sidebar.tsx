@@ -1,4 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  pointerWithin,
+  type CollisionDetection,
+  type DragStartEvent,
+  type DragMoveEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { Dropdown, Button, Tooltip, List, Typography, Modal, Space, Progress, theme, Form, Input } from "antd";
 import { message, modal } from "../antd-app";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -46,6 +60,100 @@ type TopItem =
   | { kind: "group"; gid: string; conns: ConnectionSummary[] }
   | { kind: "loose"; conn: ConnectionSummary };
 
+// A draggable-and-droppable wrapper. dnd-kit hooks must run in a component, so
+// this tiny wrapper exposes the plumbing through a render prop and keeps the row
+// / header JSX inline (no prop-drilling of the whole row). Pointer-event driven,
+// so `cursor: grabbing` actually renders during drag — native HTML5 DnD ignores
+// CSS cursors mid-drag, which is why we moved off it.
+function DragItem(props: {
+  id: string;
+  children: (dnd: {
+    setNodeRef: (n: HTMLElement | null) => void;
+    isDragging: boolean;
+    // Spread straight onto the row/header div; dnd-kit's concrete types are
+    // narrower than `any` but not worth importing here.
+    listeners: any;
+    attributes: any;
+  }) => ReactNode;
+}) {
+  const { setNodeRef: dragRef, isDragging, listeners, attributes } = useDraggable({ id: props.id });
+  const { setNodeRef: dropRef } = useDroppable({ id: props.id });
+  const setNodeRef = (n: HTMLElement | null) => {
+    dragRef(n);
+    dropRef(n);
+  };
+  return <>{props.children({ setNodeRef, isDragging, listeners, attributes })}</>;
+}
+
+// Drop-only zone (the "ungroup" strip).
+function DropZone(props: { id: string; children: (dnd: { setNodeRef: (n: HTMLElement | null) => void }) => ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: props.id });
+  return <>{props.children({ setNodeRef })}</>;
+}
+
+// A group header: draggable as a whole block, droppable to receive a connection
+// (join) or another group (reorder). It lives inside a context-menu Dropdown, so
+// it must be a real component — rc-trigger clones the immediate child (the div)
+// to inject onContextMenu, and a render-prop wrapper would break that.
+function GroupHeader(props: {
+  gid: string;
+  conns: ConnectionSummary[];
+  collapsed: boolean;
+  isDark: boolean;
+  token: any;
+  dragState: DragState | null;
+  dropTarget: string | null;
+  insertSpot: InsertSpot | null;
+  menu: any;
+  onToggle: () => void;
+}) {
+  const { setNodeRef: dragRef, listeners, attributes } = useDraggable({ id: `group:${props.gid}` });
+  const { setNodeRef: dropRef } = useDroppable({ id: `group:${props.gid}` });
+  const setNodeRef = (n: HTMLElement | null) => {
+    dragRef(n);
+    dropRef(n);
+  };
+  const { gid, conns, collapsed, isDark, token, dragState, dropTarget, insertSpot, menu, onToggle } = props;
+  return (
+    <Dropdown trigger={["contextMenu"]} menu={{ items: menu }}>
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "5px 10px 3px",
+          cursor: dragState ? "grabbing" : "pointer",
+          fontSize: 12,
+          color: token.colorTextSecondary,
+          borderRadius: 6,
+          borderBottom: "1px solid var(--border-hairline)",
+          background: dropTarget === `group:${gid}` && !(dragState?.kind === "group") ? "rgba(22,119,255,0.14)" : "transparent",
+          boxShadow: insertSpot?.kind === "group" && insertSpot.anchorGid === gid
+            ? `inset 0 ${insertSpot.before ? "2px" : "-2px"} 0 0 ${isDark ? "#4080ff" : "#1677ff"}`
+            : dropTarget === `group:${gid}` && !(dragState?.kind === "group")
+              ? `inset 3px 0 0 ${isDark ? "#4080ff" : "#1677ff"}`
+              : "none",
+          transition: "background-color .12s ease",
+        }}
+      >
+        {collapsed ? (
+          <FolderOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
+        ) : (
+          <FolderOpenOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
+        )}
+        <TruncatedText style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: token.colorTextSecondary }}>{gid}</TruncatedText>
+        <Text type="secondary" style={{ fontSize: 11, flexShrink: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+          {conns.length}
+        </Text>
+      </div>
+    </Dropdown>
+  );
+}
+
 interface Props {
   connections: ConnectionSummary[];
   selected: SelectedTarget | null;
@@ -88,6 +196,7 @@ export function Sidebar(props: Props) {
     setDragState(null);
     setDropTarget(null);
     setInsertSpot(null);
+    document.body.style.cursor = "";
   };
   const [status, setStatus] = useState<Record<string, "ok" | "error" | "disconnected">>({});
 
@@ -291,6 +400,97 @@ export function Sidebar(props: Props) {
     );
     if (sameOrdering(ordered, currentOrdering())) return;
     void persistOrder(ordered);
+  };
+
+  // ─── dnd-kit transport ────────────────────────────────────────────────────
+  // Pointer events drive the drag now, so the OS no longer owns the cursor and
+  // `cursor: grabbing` during drag actually shows. Distance-gated activation
+  // keeps a plain click = select (no accidental drag).
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // The pointer Y is only exposed through the collision detector, so stash it.
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    pointerRef.current = args.pointerCoordinates ?? null;
+    return pointerWithin(args);
+  }, []);
+
+  const onDndStart = (e: DragStartEvent) => {
+    const id = String(e.active.id);
+    if (id.startsWith("conn:")) setDragState({ kind: "conn", id: id.slice(5) });
+    else if (id.startsWith("group:")) setDragState({ kind: "group", gid: id.slice(6) });
+    setDropTarget(null);
+    setInsertSpot(null);
+    // The DragOverlay sits under the pointer and has no cursor of its own, so a
+    // row-level `cursor: grabbing` never shows there — set it on the body so the
+    // pointer reads as "grabbing" for the whole drag, then clearDrag resets it.
+    document.body.style.cursor = "grabbing";
+  };
+
+  const onDndMove = (e: DragMoveEvent) => {
+    const over = e.over;
+    if (!over || !dragState) return;
+    const overId = String(over.id);
+    const pt = pointerRef.current;
+    const before = pt ? pt.y < over.rect.top + over.rect.height / 2 : true;
+    if (dragState.kind === "conn") {
+      if (overId.startsWith("conn:")) {
+        const anchorId = overId.slice(5);
+        if (anchorId === dragState.id) {
+          setDropTarget(null);
+          setInsertSpot(null);
+          return;
+        }
+        setDropTarget(null);
+        setInsertSpot({ kind: "row", anchorId, before });
+      } else if (overId.startsWith("group:")) {
+        setInsertSpot(null);
+        setDropTarget(`group:${overId.slice(6)}`);
+      } else if (overId === "ungroup") {
+        setInsertSpot(null);
+        setDropTarget("ungroup");
+      }
+    } else {
+      // group drag: anchors are other group headers + loose rows
+      if (overId.startsWith("group:") && overId.slice(6) !== dragState.gid) {
+        setDropTarget(null);
+        setInsertSpot({ kind: "group", anchorGid: overId.slice(6), before });
+      } else if (overId.startsWith("conn:")) {
+        const connId = overId.slice(5);
+        const row = connections.find((c) => c.id === connId);
+        if (row && row.group === null) {
+          setDropTarget(null);
+          setInsertSpot({ kind: "row", anchorId: connId, before });
+        } else {
+          setInsertSpot(null);
+        }
+      }
+    }
+  };
+
+  const onDndEnd = (e: DragEndEvent) => {
+    const overId = e.over ? String(e.over.id) : null;
+    if (dragState?.kind === "conn") {
+      const connId = dragState.id;
+      if (
+        overId?.startsWith("conn:") &&
+        insertSpot?.kind === "row" &&
+        insertSpot.anchorId === overId.slice(5)
+      ) {
+        applyConnMove(connId, insertSpot.anchorId, insertSpot.before);
+      } else if (overId?.startsWith("group:")) {
+        void dropToGroup(overId.slice(6));
+      } else if (overId === "ungroup") {
+        void dropToGroup(null);
+      }
+    } else if (dragState?.kind === "group") {
+      const gid = dragState.gid;
+      if (overId?.startsWith("group:") && insertSpot?.kind === "group" && insertSpot.anchorGid === overId.slice(6)) {
+        applyGroupMove(gid, { kind: "group", id: overId.slice(6), before: insertSpot.before });
+      } else if (overId?.startsWith("conn:") && insertSpot?.kind === "row" && insertSpot.anchorId === overId.slice(5)) {
+        applyGroupMove(gid, { kind: "loose", id: overId.slice(5), before: insertSpot.before });
+      }
+    }
+    clearDrag();
   };
 
   const refreshStatus = async (connId: string) => {
@@ -536,68 +736,13 @@ export function Sidebar(props: Props) {
   const renderRow = (conn: ConnectionSummary, gid: string | null) => {
     const active = selected?.connectionId === conn.id;
     return (
-                      <div
-                        key={conn.id}
-                        draggable
-                        onDragStart={(e) => {
-                          // WebKit (macOS/Linux tauri webview) only enters a real
-                          // drop sequence if dragstart sets dataTransfer data.
-                          e.dataTransfer.setData("text/plain", conn.id);
-                          e.dataTransfer.effectAllowed = "move";
-                          setDragState({ kind: "conn", id: conn.id });
-                          setDropTarget(null);
-                          setInsertSpot(null);
-                        }}
-                        onDragEnd={clearDrag}
-                        onDragOver={(e) => {
-                          if (dragState?.kind === "conn") {
-                            if (dragState.id === conn.id) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            e.dataTransfer.dropEffect = "move";
-                            const r = e.currentTarget.getBoundingClientRect();
-                            setDropTarget(null);
-                            setInsertSpot({
-                              kind: "row",
-                              anchorId: conn.id,
-                              before: e.clientY < r.top + r.height / 2,
-                            });
-                          } else if (dragState?.kind === "group" && gid === null) {
-                            // Loose rows are top-level SIBLINGS of the groups, so
-                            // a group block can land on their edges — this is the
-                            // mixed group/connection ordering.
-                            e.preventDefault();
-                            e.stopPropagation();
-                            e.dataTransfer.dropEffect = "move";
-                            const r = e.currentTarget.getBoundingClientRect();
-                            setDropTarget(null);
-                            setInsertSpot({
-                              kind: "row",
-                              anchorId: conn.id,
-                              before: e.clientY < r.top + r.height / 2,
-                            });
-                          }
-                        }}
-                        onDrop={(e) => {
-                          if (dragState?.kind === "conn") {
-                            if (insertSpot?.kind !== "row" || insertSpot.anchorId !== conn.id) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            applyConnMove(dragState.id, conn.id, insertSpot.before);
-                            clearDrag();
-                          } else if (dragState?.kind === "group" && gid === null) {
-                            if (insertSpot?.kind !== "row" || insertSpot.anchorId !== conn.id) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            applyGroupMove(dragState.gid, {
-                              kind: "loose",
-                              id: conn.id,
-                              before: insertSpot.before,
-                            });
-                            clearDrag();
-                          }
-                        }}
-                        style={{
+      <DragItem key={conn.id} id={`conn:${conn.id}`}>
+        {({ setNodeRef, listeners, attributes }) => (
+          <div
+            ref={setNodeRef}
+            {...listeners}
+            {...attributes}
+            style={{
                           margin: "2px 0",
                           borderBottom: "1px solid var(--border-hairline)",
                           ...(gid != null ? { paddingLeft: 18 } : {}),
@@ -622,7 +767,9 @@ export function Sidebar(props: Props) {
                               alignItems: "center",
                               padding: "6px 10px",
                               borderRadius: 6,
-                              cursor: "pointer",
+                              // Idle = pointer; while a drag is in progress, show the
+                              // grabbing hand so it reads as "you're holding this".
+                              cursor: dragState ? "grabbing" : "pointer",
                               // Row tinted by the connection color so connections are
                               // visually distinguishable; selected row is stronger.
                               // On dark theme, deep presets are nudged lighter first.
@@ -690,7 +837,9 @@ export function Sidebar(props: Props) {
                             </Text>
                           </div>
                         </Dropdown>
-                      </div>
+          </div>
+        )}
+      </DragItem>
     );
   };
 
@@ -717,6 +866,14 @@ export function Sidebar(props: Props) {
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "0 2px" }}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetection}
+          onDragStart={onDndStart}
+          onDragMove={onDndMove}
+          onDragEnd={onDndEnd}
+          onDragCancel={clearDrag}
+        >
         {topItems.length === 0 && (
           <div style={{ padding: 16, textAlign: "center" }}>
             <Text type="secondary">{props.locale === "zh-CN" ? "No connections yet" : "No connections yet"}</Text>
@@ -731,96 +888,18 @@ export function Sidebar(props: Props) {
             return (
               <div key={item.kind === "group" ? `g:${item.gid}` : `c:${item.conn.id}`}>
                 {gid && (
-                  // Right-click menu. `trigger={["contextMenu"]}` is REQUIRED: with it
-                  // rc-trigger injects ONLY onContextMenu into the cloned child and adds
-                  // no wrapper DOM node, so the onClick / onDragOver / onDrop below keep
-                  // working untouched and the flex layout is unchanged. Omitting it falls
-                  // back to hover — the menu would pop open on mouse-over.
-                  <Dropdown trigger={["contextMenu"]} menu={{ items: groupMenu(gid, conns) }}>
-                    <div
-                      draggable
-                      onClick={() => toggleGroup(gid)}
-                      onDragStart={(e) => {
-                        // WebKit only enters a drop sequence if dragstart sets
-                        // dataTransfer data (same note as the connection rows).
-                        e.dataTransfer.setData("text/plain", `group:${gid}`);
-                        e.dataTransfer.effectAllowed = "move";
-                        setDragState({ kind: "group", gid });
-                        setDropTarget(null);
-                        setInsertSpot(null);
-                      }}
-                      onDragEnd={clearDrag}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.dataTransfer.dropEffect = "move";
-                        if (dragState?.kind === "group" && dragState.gid !== gid) {
-                          // Group drag: the block lands on this header's edge.
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setDropTarget(null);
-                          setInsertSpot({
-                            kind: "group",
-                            anchorGid: gid,
-                            before: e.clientY < r.top + r.height / 2,
-                          });
-                        } else if (dragState?.kind === "conn") {
-                          // Dropping on a group header = move INTO that group
-                          // (appended at its end). Positional sorting within the
-                          // group is done by dropping on its rows.
-                          setDropTarget(`group:${gid}`);
-                        }
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (dragState?.kind === "group") {
-                          if (insertSpot?.kind === "group" && insertSpot.anchorGid === gid) {
-                            applyGroupMove(dragState.gid, {
-                              kind: "group",
-                              id: gid,
-                              before: insertSpot.before,
-                            });
-                          }
-                        } else if (dragState?.kind === "conn") {
-                          void dropToGroup(gid);
-                          return;
-                        }
-                        clearDrag();
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "5px 10px 3px",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        color: token.colorTextSecondary,
-                        borderRadius: 6,
-                        borderBottom: "1px solid var(--border-hairline)",
-                        // Drop-target feedback for conn drags: a filled accent wash +
-                        // a left accent bar so it's obvious dropping here moves
-                        // into THIS group. Group drags get a 2px landing line on
-                        // the edge the block will be inserted at instead.
-                        background: dropTarget === `group:${gid}` && !(dragState?.kind === "group") ? "rgba(22,119,255,0.14)" : "transparent",
-                        boxShadow: insertSpot?.kind === "group" && insertSpot.anchorGid === gid
-                          ? `inset 0 ${insertSpot.before ? "2px" : "-2px"} 0 0 ${props.isDark ? "#4080ff" : "#1677ff"}`
-                          : dropTarget === `group:${gid}` && !(dragState?.kind === "group")
-                            ? `inset 3px 0 0 ${props.isDark ? "#4080ff" : "#1677ff"}`
-                            : "none",
-                        transition: "background-color .12s ease",
-                      }}
-                    >
-                      {collapsed ? (
-                        <FolderOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
-                      ) : (
-                        <FolderOpenOutlined style={{ fontSize: 12, color: token.colorTextTertiary }} />
-                      )}
-                      <TruncatedText style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: token.colorTextSecondary }}>{gid}</TruncatedText>
-                      <Text type="secondary" style={{ fontSize: 11, flexShrink: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                        {conns.length}
-                      </Text>
-                    </div>
-                  </Dropdown>
+                  <GroupHeader
+                    gid={gid}
+                    conns={conns}
+                    collapsed={collapsed}
+                    isDark={props.isDark}
+                    token={token}
+                    dragState={dragState}
+                    dropTarget={dropTarget}
+                    insertSpot={insertSpot}
+                    menu={groupMenu(gid, conns)}
+                    onToggle={() => toggleGroup(gid)}
+                  />
                 )}
                 {!collapsed &&
                   conns.map((conn) => renderRow(conn, gid))}
@@ -830,34 +909,25 @@ export function Sidebar(props: Props) {
           }}
         />
         {dragState?.kind === "conn" && (
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              e.dataTransfer.dropEffect = "move";
-              setInsertSpot(null);
-              setDropTarget("ungroup");
-            }}
-            onDragLeave={() => setDropTarget((p) => (p === "ungroup" ? null : p))}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void dropToGroup(null);
-              clearDrag();
-            }}
-            style={{
-              marginTop: 6,
-              padding: "5px 10px",
-              borderRadius: 6,
-              fontSize: 12,
-              textAlign: "center",
-              border: `1px dashed ${dropTarget === "ungroup" ? (props.isDark ? "#4080ff" : "#1677ff") : "var(--border-strong)"}`,
-              color: dropTarget === "ungroup" ? (props.isDark ? "#4080ff" : "#1677ff") : token.colorTextTertiary,
-              background: dropTarget === "ungroup" ? "rgba(22,119,255,0.10)" : "transparent",
-            }}
-          >
-            {props.locale === "zh-CN" ? "移出分组" : "Ungroup"}
-          </div>
+          <DropZone id="ungroup">
+            {({ setNodeRef }) => (
+              <div
+                ref={setNodeRef}
+                style={{
+                  marginTop: 6,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  textAlign: "center",
+                  border: `1px dashed ${dropTarget === "ungroup" ? (props.isDark ? "#4080ff" : "#1677ff") : "var(--border-strong)"}`,
+                  color: dropTarget === "ungroup" ? (props.isDark ? "#4080ff" : "#1677ff") : token.colorTextTertiary,
+                  background: dropTarget === "ungroup" ? "rgba(22,119,255,0.10)" : "transparent",
+                }}
+              >
+                {props.locale === "zh-CN" ? "移出分组" : "Ungroup"}
+              </div>
+            )}
+          </DropZone>
         )}
         <div style={{ padding: "4px 8px" }}>
           <Button
@@ -875,6 +945,18 @@ export function Sidebar(props: Props) {
           </Button>
         </div>
         </div>
+        <DragOverlay dropAnimation={null} style={{ pointerEvents: "none" }}>
+          {dragState?.kind === "conn" ? (
+            <div style={{ padding: "6px 10px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, color: token.colorText }}>
+              {connections.find((c) => c.id === dragState.id)?.name ?? ""}
+            </div>
+          ) : dragState?.kind === "group" ? (
+            <div style={{ padding: "5px 10px", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 12, color: token.colorTextSecondary }}>
+              {dragState.gid}
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
       </div>
 
       {/* Collapse control, its own row just above the footer */}
