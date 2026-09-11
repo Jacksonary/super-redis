@@ -622,7 +622,7 @@ export function Sidebar(props: Props) {
                               alignItems: "center",
                               padding: "6px 10px",
                               borderRadius: 6,
-                              cursor: "grab",
+                              cursor: "pointer",
                               // Row tinted by the connection color so connections are
                               // visually distinguishable; selected row is stronger.
                               // On dark theme, deep presets are nudged lighter first.
@@ -792,7 +792,7 @@ export function Sidebar(props: Props) {
                         alignItems: "center",
                         gap: 6,
                         padding: "5px 10px 3px",
-                        cursor: "grab",
+                        cursor: "pointer",
                         fontSize: 12,
                         color: token.colorTextSecondary,
                         borderRadius: 6,
