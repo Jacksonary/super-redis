@@ -2,6 +2,7 @@ use tauri::Manager;
 
 mod commands;
 mod redisclient;
+mod secrets;
 mod task_registry;
 pub mod types;
 
@@ -37,6 +38,7 @@ pub fn run() {
             // Config & settings
             commands::config::get_config,
             commands::config::put_config,
+            commands::connections::reveal_connection_password,
             commands::config::export_config,
             commands::config::import_config,
             commands::config::get_connection_groups,
@@ -53,6 +55,9 @@ pub fn run() {
             commands::connections::clone_connection,
             commands::connections::delete_connection,
             commands::connections::set_connection_group,
+            commands::connections::rename_connection_group,
+            commands::connections::reorder_connections,
+            commands::connections::delete_connection_group,
             commands::connections::test_connection,
             commands::connections::select_database,
             commands::connections::get_connection_state,

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Modal, Form, Switch, Typography, Select, Button, Space, InputNumber } from "antd";
 import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { open as dialogOpen, save } from "@tauri-apps/plugin-dialog";
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, settings, saveSettings, onRefreshConnections }: Props) {
+
   const doExport = async () => {
     try {
       const path = await save({
@@ -124,8 +126,9 @@ export function SettingsModal({ open, onClose, isDark, onThemeToggle, locale, se
           </Space>
         </Form.Item>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          Secrets are stored in the OS keyring and excluded from export. Batch size
-          and interval apply to SCAN and DEL operations.
+          Passwords are encrypted on disk with a key held in the OS keyring. Export
+          writes them as plaintext — treat the file as a secret. Batch size and
+          interval apply to SCAN and DEL operations.
         </Text>
       </Form>
 

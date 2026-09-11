@@ -3941,6 +3941,7 @@ dependencies = [
  "keyring",
  "redis",
  "regex",
+ "ring",
  "rmp-serde",
  "serde",
  "serde_json",

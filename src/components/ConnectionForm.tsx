@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import { Modal, Form, Input, InputNumber, Select, Switch, Row, Col, Spin, Button, Collapse, Space, AutoComplete, Dropdown, Divider } from "antd";
+import { Modal, Form, Input, InputNumber, Select, Switch, Row, Col, Spin, Button, Collapse, Space, AutoComplete, Dropdown, Divider, message } from "antd";
 import { FolderOpenOutlined, DownOutlined } from "@ant-design/icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { Connection, ConnectionSummary } from "../types";
 import { api } from "../api";
 
 const { Panel } = Collapse;
+
+// Stands in for a stored password we deliberately do not fetch. Any other value
+// in the field is something the user typed or revealed.
+const STORED_PASSWORD_PLACEHOLDER = "\u2022".repeat(10);
 
 interface Props {
   open: boolean;
@@ -68,6 +72,31 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
   const mode = Form.useWatch("mode", form) || "standalone";
   const [modeVal, setModeVal] = useState(mode);
   const tls = Form.useWatch("tls", form);
+  // Password is write-only: the backend sends `has_password` rather than the
+  // secret, and we show a placeholder for it. Decryption happens only when the
+  // user actually asks to look, by opening the visibility toggle.
+  const [hasStoredPassword, setHasStoredPassword] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  const onToggleReveal = async (visible: boolean) => {
+    if (!visible) {
+      setRevealed(false);
+      return;
+    }
+    const current = form.getFieldValue("password");
+    if (current === STORED_PASSWORD_PLACEHOLDER && initialSummary?.id) {
+      try {
+        const pw = await api.revealConnectionPassword(initialSummary.id);
+        form.setFieldsValue({ password: pw ?? "" });
+      } catch (e) {
+        message.error(
+          locale === "zh-CN" ? `读取密码失败: ${String(e)}` : `Failed to read password: ${String(e)}`,
+        );
+        return;
+      }
+    }
+    setRevealed(true);
+  };
 
   useEffect(() => {
     if (open) {
@@ -98,6 +127,8 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
         }
         const modeInit = full?.mode ?? "standalone";
         setModeVal(modeInit);
+        setHasStoredPassword(!!full?.acl.has_password);
+        setRevealed(false);
         form.setFieldsValue({
           name: initialSummary?.name ?? full?.name ?? "",
           host: full?.host ?? "127.0.0.1",
@@ -109,7 +140,10 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
           color: full?.color ?? "none",
           timeoutMs: full?.timeout_ms ?? 1000,
           user: full?.acl.username ?? "",
-          password: full?.acl.password ?? "",
+          // A stand-in for the stored password, which the backend masks. It also
+          // disambiguates the submit: leaving it alone means "unchanged", while
+          // clearing the field is an explicit delete.
+          password: full?.acl.has_password ? STORED_PASSWORD_PLACEHOLDER : "",
           clusterNodes: (full?.cluster.nodes ?? []).join(", "),
           sentinelMaster: full?.sentinel.masterName ?? "mymaster",
           sentinelNodes: (full?.sentinel.nodes ?? []).join(", "),
@@ -140,7 +174,19 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
         timeout_ms: values.timeoutMs ?? 1000,
         color: values.color === "none" ? undefined : values.color,
         group: values.group || null,
-        acl: { enabled: !!values.password, username: values.user || "", password: values.password || "" },
+        acl: (() => {
+          const typed = values.password ?? "";
+          const unchanged = typed === STORED_PASSWORD_PLACEHOLDER;
+          return {
+            // The backend recomputes this; send a best guess for older callers.
+            enabled: unchanged ? hasStoredPassword : !!typed,
+            username: values.user || "",
+            // Empty only reaches the backend as a deletion when the user cleared
+            // a placeholder that was really there.
+            password: unchanged ? "" : typed,
+            clear_password: !unchanged && !typed && hasStoredPassword,
+          };
+        })(),
         tls: {
           enabled: !!values.tls,
           caCertFile: values.caCertFile || null,
@@ -247,7 +293,9 @@ export function ConnectionForm({ open, initialSummary, onClose, onSaved, locale 
           </Col>
           <Col span={12}>
             <Form.Item name="password" label="Password">
-              <Input.Password />
+              <Input.Password
+                visibilityToggle={{ visible: revealed, onVisibleChange: onToggleReveal }}
+              />
             </Form.Item>
           </Col>
         </Row>

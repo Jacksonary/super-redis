@@ -64,6 +64,20 @@ export const api = {
   setConnectionGroup(connId: string, group: string | null): Promise<{ ok: boolean }> {
     return invoke("set_connection_group", { connId, group: group ?? null });
   },
+  renameConnectionGroup(oldName: string, newName: string): Promise<{ ok: boolean; renamed: number }> {
+    return invoke("rename_connection_group", { oldName, newName });
+  },
+  /** Apply both display order and group membership in one round-trip. */
+  reorderConnections(ordered: { id: string; group: string | null }[]): Promise<{ ok: boolean }> {
+    return invoke("reorder_connections", { ordered });
+  },
+  /** Decrypt and return a stored password. The only path that reveals plaintext. */
+  revealConnectionPassword(connId: string): Promise<string | null> {
+    return invoke("reveal_connection_password", { connId });
+  },
+  deleteConnectionGroup(group: string): Promise<{ ok: boolean; deleted: number }> {
+    return invoke("delete_connection_group", { group });
+  },
   testConnection(connId: string): Promise<{ ok: boolean }> {
     return invoke("test_connection", { connId });
   },

@@ -37,7 +37,17 @@ impl Default for TlsConfig {
     }
 }
 
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
 /// Redis 6.0+ ACL user/password.
+///
+/// The password is write-only across the IPC boundary. `get_config` blanks it and
+/// sets `has_password` instead, so the edit dialog can say "a password is stored"
+/// without anything being decrypted — which is what keeps renaming a connection
+/// free of keychain prompts. An empty `password` on the way in therefore means
+/// "leave the stored one alone"; `clear_password` is the explicit delete.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AclConfig {
     #[serde(default)]
@@ -45,12 +55,29 @@ pub struct AclConfig {
     #[serde(default)]
     pub username: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub password: String, // sensitive → keyring
+    pub password: String, // sensitive → encrypted store, never persisted here
+    /// Outbound only. Never deserialized, so it can never be spoofed by a client
+    /// or resurrected from `config.json`.
+    #[serde(default, skip_deserializing, skip_serializing_if = "is_false")]
+    pub has_password: bool,
+    /// Inbound only. Meaningful only when `password` is empty.
+    #[serde(default, skip_serializing)]
+    pub clear_password: bool,
 }
 
 impl Default for AclConfig {
     fn default() -> Self {
-        Self { enabled: false, username: "default".to_string(), password: String::new() }
+        Self {
+            enabled: false,
+            // Empty, not "default". Redis 6+ calls its implicit user `default`,
+            // but spelling it out here leaked a username the user never typed
+            // into `config.json` and then into the edit dialog — and it is a
+            // no-op anyway, since the connect path omits the username for both.
+            username: String::new(),
+            password: String::new(),
+            has_password: false,
+            clear_password: false,
+        }
     }
 }
 
@@ -408,6 +435,15 @@ pub struct MonitorEvent {
 pub struct PubSubMessage {
     pub channel: String,
     pub message: String,
+}
+
+/// One connection's slot in the display order, carrying its final group. The
+/// reorder command applies BOTH at once — the connections array order IS the
+/// display order, and grouping is derived from each connection's `group`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionOrdering {
+    pub id: String,
+    pub group: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -1,3 +1,4 @@
+use crate::secrets::{self, SecretMap};
 use crate::types::{
     AppSettings, Connection, ConnectionGroup, ConnectionSummary,
 };
@@ -26,44 +27,10 @@ fn config_lock() -> &'static Mutex<()> {
     CONFIG_LOCK.get_or_init(|| Mutex::new(()))
 }
 
-// ─── Keyring helpers ─────────────────────────────────────────────────────────
-
-const KEYRING_SERVICE: &str = "super-redis";
-
-fn kr_entry(key: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYRING_SERVICE, key).map_err(|e| format!("keyring: {e}"))
-}
-
-/// Store a secret, but SKIP the write when the value is unchanged.
-///
-/// macOS keychain treats every `set_password` as a fresh ACL grant and re-prompts
-/// for authorization, and an unsigned dev app can't be remembered. Since save
-/// paths rewrite every connection's secrets, writing unchanged values triggers a
-/// burst of password prompts on every config edit. Comparing first means only a
-/// genuinely new/changed secret touches the keychain (a no-op edit is free).
-fn kr_store(key: &str, value: &str) -> Result<(), String> {
-    let entry = kr_entry(key)?;
-    if let Ok(existing) = entry.get_password() {
-        if existing == value {
-            return Ok(()); // unchanged — nothing to persist, no prompt
-        }
-    }
-    entry
-        .set_password(value)
-        .map_err(|e| format!("keyring store: {e}"))
-}
-
-fn kr_load(key: &str) -> Result<String, String> {
-    kr_entry(key)?
-        .get_password()
-        .map_err(|e| format!("keyring load: {e}"))
-}
-
-fn kr_delete(key: &str) {
-    if let Ok(e) = kr_entry(key) {
-        let _ = e.delete_credential();
-    }
-}
+// ─── Secret keys ─────────────────────────────────────────────────────────────
+//
+// Credentials live in `crate::secrets` (one encrypted file, one master key in
+// the OS keyring). Nothing here talks to the keyring directly.
 
 /// Secret keys, all keyed by connection id.
 fn acl_password_key(id: &str) -> String { format!("{id}:acl_password") }
@@ -73,14 +40,19 @@ fn ssh_password_key(id: &str) -> String { format!("{id}:ssh_password") }
 
 // ─── Config path ─────────────────────────────────────────────────────────────
 
+/// Directory holding `config.json`, `settings.json` and `secrets.enc`.
+pub fn config_dir() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("super-redis")
+}
+
 fn config_path() -> PathBuf {
-    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    base.join("super-redis").join("config.json")
+    config_dir().join("config.json")
 }
 
 fn settings_path() -> PathBuf {
-    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    base.join("super-redis").join("settings.json")
+    config_dir().join("settings.json")
 }
 
 fn ensure_dir(path: &PathBuf) -> Result<(), String> {
@@ -99,61 +71,48 @@ fn ensure_id(conn: &mut Connection) {
     }
 }
 
-/// Resolve secret fields for a connection from the OS keyring.
-fn hydrate_secrets(conn: &mut Connection) {
+/// Fill a connection's secret fields from the decrypted credential map.
+fn hydrate_secrets(conn: &mut Connection, map: &SecretMap) {
     let id = match &conn.id {
         Some(id) => id.clone(),
         None => return,
     };
-    if conn.acl.password.is_empty() {
-        if let Ok(p) = kr_load(&acl_password_key(&id)) {
-            conn.acl.password = p;
+    let take = |key: String, field: &mut String| {
+        if field.is_empty() {
+            if let Some(v) = map.get(&key) {
+                *field = v.clone();
+            }
         }
-    }
-    if conn.tls.key_passphrase.is_empty() {
-        if let Ok(p) = kr_load(&tls_passphrase_key(&id)) {
-            conn.tls.key_passphrase = p;
-        }
-    }
-    if conn.sentinel.password.is_empty() {
-        if let Ok(p) = kr_load(&sentinel_password_key(&id)) {
-            conn.sentinel.password = p;
-        }
-    }
-    if conn.ssh.password.is_empty() {
-        if let Ok(p) = kr_load(&ssh_password_key(&id)) {
-            conn.ssh.password = p;
-        }
-    }
+    };
+    take(acl_password_key(&id), &mut conn.acl.password);
+    take(tls_passphrase_key(&id), &mut conn.tls.key_passphrase);
+    take(sentinel_password_key(&id), &mut conn.sentinel.password);
+    take(ssh_password_key(&id), &mut conn.ssh.password);
 }
 
-/// Persist secret fields to the OS keyring and strip them from the written copy.
+/// Move a connection's secret fields into the credential map, leaving the
+/// connection itself scrubbed so it can be written to `config.json`.
 ///
-/// Returns an error if the keyring fails to store a secret; on error the secret
-/// is NOT cleared so the caller has a chance to abort before persisting an
-/// empty config (we never silently drop a credential).
-fn store_and_strip(conn: &mut Connection) -> Result<(), String> {
+/// The caller must have loaded `conn` through [`load_config`], because an empty
+/// field is taken to mean "this connection has no such secret" and clears any
+/// stored value. That is what makes clearing a password in the edit dialog
+/// actually take effect.
+fn store_and_strip(conn: &mut Connection, map: &mut SecretMap) {
     let id = match &conn.id {
         Some(id) => id.clone(),
-        None => return Ok(()),
+        None => return,
     };
-    if !conn.acl.password.is_empty() {
-        kr_store(&acl_password_key(&id), &conn.acl.password)?;
-        conn.acl.password.clear();
-    }
-    if !conn.tls.key_passphrase.is_empty() {
-        kr_store(&tls_passphrase_key(&id), &conn.tls.key_passphrase)?;
-        conn.tls.key_passphrase.clear();
-    }
-    if !conn.sentinel.password.is_empty() {
-        kr_store(&sentinel_password_key(&id), &conn.sentinel.password)?;
-        conn.sentinel.password.clear();
-    }
-    if !conn.ssh.password.is_empty() {
-        kr_store(&ssh_password_key(&id), &conn.ssh.password)?;
-        conn.ssh.password.clear();
-    }
-    Ok(())
+    let mut put = |key: String, field: &mut String| {
+        if field.is_empty() {
+            map.remove(&key);
+        } else {
+            map.insert(key, std::mem::take(field));
+        }
+    };
+    put(acl_password_key(&id), &mut conn.acl.password);
+    put(tls_passphrase_key(&id), &mut conn.tls.key_passphrase);
+    put(sentinel_password_key(&id), &mut conn.sentinel.password);
+    put(ssh_password_key(&id), &mut conn.ssh.password);
 }
 
 fn read_config_file() -> ConfigFile {
@@ -167,57 +126,105 @@ fn read_config_file() -> ConfigFile {
         .unwrap_or_default()
 }
 
-// In-memory cache of the hydrated config file. Holds the keyring secrets so we
-// touch the OS keychain at most once per process instead of once per command /
-// refresh — this dramatically reduces macOS keychain authorization prompts.
+// In-memory cache of the config file exactly as it sits on disk — metadata
+// only, never secrets. Credentials are merged in on demand by `load_config`,
+// which is what keeps sidebar browsing and group edits off the keyring entirely.
 static CONFIG_CACHE: OnceLock<Mutex<Option<ConfigFile>>> = OnceLock::new();
 fn config_cache() -> &'static Mutex<Option<ConfigFile>> {
     CONFIG_CACHE.get_or_init(|| Mutex::new(None))
 }
 
-/// Load the full config file, hydrating any secrets held in the keyring.
-pub fn load_config() -> Result<ConfigFile, String> {
+/// Load the config WITHOUT credentials.
+///
+/// Never touches the keyring, so it is the right entry point for anything that
+/// only needs names, groups, colors or ordering.
+pub fn load_config_meta() -> Result<ConfigFile, String> {
     let _guard = config_lock().lock().unwrap();
+    load_meta_locked()
+}
+
+/// Caller must hold `config_lock`.
+fn load_meta_locked() -> Result<ConfigFile, String> {
     if let Some(cfg) = config_cache().lock().unwrap().as_ref() {
         return Ok(cfg.clone());
     }
     let mut cfg = read_config_file();
+    let mut assigned = false;
     for conn in cfg.connections.iter_mut() {
-        ensure_id(conn);
-        hydrate_secrets(conn);
+        if conn.id.is_none() {
+            ensure_id(conn);
+            assigned = true;
+        }
     }
+    if assigned {
+        write_config_file(&cfg)?;
+    }
+    // Cheap, keyring-free: tells the lazy migration which legacy entries exist.
+    let ids: Vec<String> = cfg.connections.iter().filter_map(|c| c.id.clone()).collect();
+    secrets::note_connection_ids(&ids);
     *config_cache().lock().unwrap() = Some(cfg.clone());
     Ok(cfg)
 }
 
-/// Load config and assign ids to any connections that lack one, persisting back.
-pub fn load_config_with_ids() -> Result<ConfigFile, String> {
-    let mut cfg = load_config()?;
-    let mut needs_save = false;
+/// Load the config WITH credentials merged in.
+///
+/// Needs the master key, so it costs one keyring access per process. Use only
+/// where credentials are genuinely required (opening a session, the edit dialog,
+/// export, clone) — and note that saving a config loaded any other way would
+/// treat its blank secret fields as deletions.
+pub fn load_config() -> Result<ConfigFile, String> {
+    let _guard = config_lock().lock().unwrap();
+    let mut cfg = load_meta_locked()?;
+    let map = secrets::get_all()?;
     for conn in cfg.connections.iter_mut() {
-        if conn.id.is_none() {
-            ensure_id(conn);
-            needs_save = true;
-        }
-    }
-    if needs_save {
-        write_config_file(&cfg)?;
+        hydrate_secrets(conn, &map);
     }
     Ok(cfg)
 }
 
-/// Save the config file, moving secrets into the keyring first.
+/// Save config AND credentials. `cfg` must come from [`load_config`].
 pub fn save_config(cfg: &ConfigFile) -> Result<(), String> {
+    let _guard = config_lock().lock().unwrap();
+    let mut copy = cfg.clone();
+    let mut map = secrets::get_all()?;
+    for conn in copy.connections.iter_mut() {
+        ensure_id(conn);
+        store_and_strip(conn, &mut map);
+    }
+    // `cfg` is authoritative, so anything left over belongs to a connection that
+    // no longer exists. Drops credentials for deleted connections for free.
+    let live: std::collections::HashSet<&str> = copy
+        .connections
+        .iter()
+        .filter_map(|c| c.id.as_deref())
+        .collect();
+    map.retain(|k, _| live.contains(secrets::owner_id(k)));
+
+    write_config_file(&copy)?;
+    secrets::save_all(map)?;
+    // Refresh the cache in place rather than clearing it: dropping it would force
+    // the next read to decrypt again, which is exactly the round trip we removed.
+    *config_cache().lock().unwrap() = Some(copy);
+    Ok(())
+}
+
+/// Save config metadata only, leaving every stored credential untouched.
+///
+/// Reads no secrets and writes none, so it never needs the master key. This is
+/// the path for renames, grouping, colors and ordering — operations that have no
+/// business asking the user to unlock their keychain.
+///
+/// `cfg` MUST come from [`load_config_meta`]. Its secret fields are written back
+/// verbatim, which is a no-op for a metadata copy (they are whatever
+/// `config.json` already held) but would write plaintext for a hydrated one.
+pub fn save_config_meta(cfg: &ConfigFile) -> Result<(), String> {
     let _guard = config_lock().lock().unwrap();
     let mut copy = cfg.clone();
     for conn in copy.connections.iter_mut() {
         ensure_id(conn);
-        store_and_strip(conn)?;
     }
     write_config_file(&copy)?;
-    // Invalidate the in-memory config cache so the next read reflects the change
-    // immediately (add/edit/delete connections take effect without a restart).
-    *config_cache().lock().unwrap() = None;
+    *config_cache().lock().unwrap() = Some(copy);
     Ok(())
 }
 
@@ -242,7 +249,7 @@ pub fn get_connection(conn_id: &str) -> Result<Connection, String> {
 
 /// Build frontend-facing connection summaries (no credentials).
 pub fn list_connection_summaries() -> Result<Vec<ConnectionSummary>, String> {
-    let cfg = load_config()?;
+    let cfg = load_config_meta()?;
     Ok(cfg
         .connections
         .iter()
@@ -318,12 +325,21 @@ pub struct Session {
 /// Build a redis connection URL. For TLS + skip_verify we append the `#insecure`
 /// fragment (requires the `tls-rustls-insecure` feature), which redis-rs parses
 /// into an `insecure` TLS connection.
+/// Whether a username needs to be sent at all.
+///
+/// Redis 6+ authenticates as its implicit `default` user when none is given, so
+/// naming it explicitly is a no-op. Older configs have it written into
+/// `config.json`; treating it as unset keeps standalone and cluster consistent.
+fn has_explicit_username(conn: &Connection) -> bool {
+    !conn.acl.username.is_empty() && conn.acl.username != "default"
+}
+
 fn build_url(conn: &Connection, host: &str, port: u16, db: i64, use_acl: bool) -> String {
     let scheme = if conn.tls.enabled { "rediss" } else { "redis" };
-    let creds = if use_acl && conn.acl.enabled && !conn.acl.password.is_empty() {
+    let creds = if use_acl && !conn.acl.password.is_empty() {
         let user = urlencoding::encode(&conn.acl.username).into_owned();
         let pass = urlencoding::encode(&conn.acl.password).into_owned();
-        if conn.acl.username.is_empty() || conn.acl.username == "default" {
+        if !has_explicit_username(conn) {
             format!(":{pass}@")
         } else {
             format!("{user}:{pass}@")
@@ -596,10 +612,10 @@ async fn open_cluster(conn: &Connection) -> Result<redis::cluster_async::Cluster
         return Err("CLUSTER: no valid nodes".to_string());
     }
     let mut builder = redis::cluster::ClusterClientBuilder::new(urls);
-    if conn.acl.enabled && !conn.acl.username.is_empty() {
+    if has_explicit_username(conn) {
         builder = builder.username(conn.acl.username.clone());
     }
-    if conn.acl.enabled && !conn.acl.password.is_empty() {
+    if !conn.acl.password.is_empty() {
         builder = builder.password(conn.acl.password.clone());
     }
     builder = builder.connection_timeout(Duration::from_millis(conn.timeout_ms));
@@ -636,34 +652,228 @@ fn session_cache() -> &'static Mutex<HashMap<String, Arc<Session>>> {
 }
 
 /// Get (or open+cache) a live session for a connection id.
-pub async fn get_session(conn_id: &str) -> Result<Arc<Session>, String> {
-    {
-        let cache = session_cache().lock().unwrap();
-        if let Some(s) = cache.get(conn_id) {
-            return Ok(s.clone());
-        }
-    }
-    let conn = get_connection(conn_id)?;
-    let session = Session::open(conn).await?;
-    session_cache()
+// Serializes opens per connection. Selecting a connection fans out to several
+// panels at once; without this each one runs its own TCP+TLS handshake, so a
+// dead host produced four identical failures in the same second.
+static SESSION_GATES: OnceLock<Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
+    OnceLock::new();
+
+fn session_gate(conn_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+    SESSION_GATES
+        .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap()
-        .insert(conn_id.to_string(), session.clone());
-    Ok(session)
+        .entry(conn_id.to_string())
+        .or_default()
+        .clone()
+}
+
+// Remembers a failed open just long enough to cover the fan-out. The gate alone
+// is not enough: the callers queued behind it would each retry the same doomed
+// handshake in turn, turning four parallel failures into four serial ones.
+static SESSION_FAILURES: OnceLock<Mutex<HashMap<String, (std::time::Instant, String)>>> =
+    OnceLock::new();
+const FAILURE_TTL: Duration = Duration::from_millis(1500);
+
+fn session_failures() -> &'static Mutex<HashMap<String, (std::time::Instant, String)>> {
+    SESSION_FAILURES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn recent_failure(conn_id: &str) -> Option<String> {
+    let map = session_failures().lock().unwrap();
+    map.get(conn_id).and_then(|(at, err)| {
+        (at.elapsed() < FAILURE_TTL).then(|| err.clone())
+    })
+}
+
+/// Forget a cached failure so the next open really retries. Called for actions
+/// the user took deliberately, which must never be answered from cache.
+pub fn clear_session_failure(conn_id: &str) {
+    session_failures().lock().unwrap().remove(conn_id);
+}
+
+pub async fn get_session(conn_id: &str) -> Result<Arc<Session>, String> {
+    if let Some(s) = session_cache().lock().unwrap().get(conn_id) {
+        return Ok(s.clone());
+    }
+    let gate = session_gate(conn_id);
+    let _open = gate.lock().await;
+    // Re-check under the gate: whoever held it may have opened the session, or
+    // failed and left an error worth reusing.
+    if let Some(s) = session_cache().lock().unwrap().get(conn_id) {
+        return Ok(s.clone());
+    }
+    if let Some(err) = recent_failure(conn_id) {
+        return Err(err);
+    }
+    let conn = get_connection(conn_id)?;
+    match Session::open(conn).await {
+        Ok(session) => {
+            session_cache()
+                .lock()
+                .unwrap()
+                .insert(conn_id.to_string(), session.clone());
+            clear_session_failure(conn_id);
+            Ok(session)
+        }
+        Err(e) => {
+            session_failures()
+                .lock()
+                .unwrap()
+                .insert(conn_id.to_string(), (std::time::Instant::now(), e.clone()));
+            Err(e)
+        }
+    }
 }
 
 /// Drop cached sessions. Call after the user edits a connection so the next
 /// request reconnects with fresh credentials/settings.
 pub fn invalidate_session_cache() {
     session_cache().lock().unwrap().clear();
+    session_failures().lock().unwrap().clear();
 }
 
-/// Delete all keyring secrets held for a connection id.
-pub fn delete_connection_secrets(conn_id: &str) {
-    kr_delete(&acl_password_key(conn_id));
-    kr_delete(&tls_passphrase_key(conn_id));
-    kr_delete(&sentinel_password_key(conn_id));
-    kr_delete(&ssh_password_key(conn_id));
+// ─── Credential intent (the write-only password boundary) ────────────────────
+
+/// Apply the credential changes a client asked for, and nothing else.
+///
+/// An empty `password` means "leave the stored one alone", so this is a no-op —
+/// and crucially never touches the master key — unless the user actually typed a
+/// new password or asked for the stored one to be cleared. That is what makes
+/// renaming a connection cost zero keychain access.
+///
+/// Only the ACL password is exposed by the UI; TLS, sentinel and SSH secrets are
+/// left untouched for the same reason (an empty field is not a deletion).
+///
+/// Returns whether any credential actually changed, so the caller can decide
+/// whether the live session needs to be rebuilt.
+pub fn apply_secret_intent(conn: &Connection) -> Result<bool, String> {
+    let id = match conn.id.as_deref() {
+        Some(id) => id,
+        None => return Ok(false),
+    };
+    let mut changed = false;
+    if !conn.acl.password.is_empty() {
+        secrets::set_one(&acl_password_key(id), Some(&conn.acl.password))?;
+        changed = true;
+    } else if conn.acl.clear_password {
+        secrets::set_one(&acl_password_key(id), None)?;
+        changed = true;
+    }
+    // No clear-flag for these: the UI does not expose them, so "empty" can only
+    // mean "unchanged". They are removed with the connection itself.
+    if !conn.tls.key_passphrase.is_empty() {
+        secrets::set_one(&tls_passphrase_key(id), Some(&conn.tls.key_passphrase))?;
+        changed = true;
+    }
+    if !conn.sentinel.password.is_empty() {
+        secrets::set_one(&sentinel_password_key(id), Some(&conn.sentinel.password))?;
+        changed = true;
+    }
+    if !conn.ssh.password.is_empty() {
+        secrets::set_one(&ssh_password_key(id), Some(&conn.ssh.password))?;
+        changed = true;
+    }
+    Ok(changed)
+}
+
+/// Whether an edit changes anything the live session was built from.
+///
+/// Every field a session carries into its TCP/TLS/auth configuration is here;
+/// everything purely cosmetic (name, group, color, encoding) is not, so those
+/// edits can land without disconnecting an active connection. `readonly` is
+/// included because commands read it from the cached session's `conn` copy.
+///
+/// Credentials are NOT compared here: the secret store is separate, so the old
+/// copy has blank password fields. Password changes arrive through
+/// [`apply_secret_intent`]'s return value instead.
+pub fn connectivity_relevant_diff(old: &Connection, new: &Connection) -> bool {
+    old.host != new.host
+        || old.port != new.port
+        || old.db != new.db
+        || old.mode != new.mode
+        || old.timeout_ms != new.timeout_ms
+        || old.readonly != new.readonly
+        // Compare the WIRE MEANING, not the raw string: `""` and `"default"`
+        // are the same AUTH (Redis's implicit user), so an edit between them
+        // must not reconnect — nothing changed on the wire.
+        || has_explicit_username(old) != has_explicit_username(new)
+        || old.tls.enabled != new.tls.enabled
+        || old.tls.ca_cert_file != new.tls.ca_cert_file
+        || old.tls.client_cert_file != new.tls.client_cert_file
+        || old.tls.client_key_file != new.tls.client_key_file
+        || old.tls.skip_verify != new.tls.skip_verify
+        || old.tls.server_name != new.tls.server_name
+        || old.cluster.nodes != new.cluster.nodes
+        || old.sentinel.master_name != new.sentinel.master_name
+        || old.sentinel.nodes != new.sentinel.nodes
+        || old.startup_commands != new.startup_commands
+        // SSH is not exposed in the UI yet, but a future edit here must rebuild
+        // the session like any other transport-level change.
+        || old.ssh.enabled != new.ssh.enabled
+        || old.ssh.host != new.ssh.host
+        || old.ssh.port != new.ssh.port
+        || old.ssh.username != new.ssh.username
+        || old.ssh.private_key_file != new.ssh.private_key_file
+        || old.ssh.remote_host != new.ssh.remote_host
+        || old.ssh.remote_port != new.ssh.remote_port
+}
+
+/// Drop the live session for one connection, plus any remembered failure, so
+/// the next command against it does a fresh handshake with the new settings.
+pub fn invalidate_session_for(conn_id: &str) {
+    drop_session(conn_id);
+    clear_session_failure(conn_id);
+}
+
+/// Keep `acl.enabled` truthful in `config.json`.
+///
+/// It is a derived mirror of "a password exists" and nothing authenticates on it
+/// any more, so a stale value is cosmetic rather than a connection failure.
+pub fn sync_acl_enabled(conn: &mut Connection) {
+    let stored = conn
+        .id
+        .as_deref()
+        .map(|id| secrets::has(&acl_password_key(id)))
+        .unwrap_or(false);
+    conn.acl.enabled = !conn.acl.password.is_empty() || (stored && !conn.acl.clear_password);
+}
+
+/// Blank every secret field and flag which ones exist, for handing a connection
+/// list to the UI. Uses the plaintext key index, so it needs no master key.
+fn mask_secrets(conn: &mut Connection) {
+    let has = conn
+        .id
+        .as_deref()
+        .map(|id| secrets::has(&acl_password_key(id)))
+        .unwrap_or(false);
+    conn.acl.password.clear();
+    conn.tls.key_passphrase.clear();
+    conn.sentinel.password.clear();
+    conn.ssh.password.clear();
+    conn.acl.has_password = has;
+}
+
+/// Connections for the UI, with credentials masked rather than revealed.
+pub fn list_connections_masked() -> Result<Vec<Connection>, String> {
+    let mut cfg = load_config_meta()?;
+    for conn in cfg.connections.iter_mut() {
+        mask_secrets(conn);
+    }
+    Ok(cfg.connections)
+}
+
+/// The stored ACL password, for the edit dialog's explicit "show" action.
+pub fn reveal_acl_password(conn_id: &str) -> Result<Option<String>, String> {
+    secrets::get_one(&acl_password_key(conn_id))
+}
+
+/// Delete every credential held for the given connection ids.
+pub fn delete_connection_secrets(conn_ids: &[String]) {
+    // Best-effort: the connections are already gone from config.json, and a
+    // leftover entry is inert (nothing can reference it) and gets swept up by
+    // the next hydrated save.
+    let _ = secrets::remove_for_connections(conn_ids);
 }
 
 /// Establish a session and validate it with a PING. Used by `test_connection`.
@@ -678,4 +888,75 @@ pub async fn test_session(conn_id: &str) -> Result<(), String> {
 /// Drop a single cached session (used by "disconnect"). Returns true if one was removed.
 pub fn drop_session(conn_id: &str) -> bool {
     session_cache().lock().unwrap().remove(conn_id).is_some()
+}
+
+
+#[cfg(test)]
+mod connectivity_tests {
+    use super::*;
+    use crate::types::{AclConfig, Connection, TlsConfig};
+
+    #[test]
+    fn identical_connections_have_no_diff() {
+        assert!(!connectivity_relevant_diff(&Connection::default(), &Connection::default()));
+    }
+
+    #[test]
+    fn cosmetic_fields_alone_do_not_disconnect() {
+        let mut a = Connection::default();
+        let mut b = Connection::default();
+        b.name = "renamed".into();
+        b.group = Some("prod".into());
+        b.color = Some("red".into());
+        b.encoding = "latin1".into();
+        assert!(!connectivity_relevant_diff(&a, &b));
+    }
+
+    #[test]
+    fn empty_to_default_username_is_a_wire_noop() {
+        let mut a = Connection::default();
+        a.acl.username = String::new();
+        let mut b = Connection::default();
+        b.acl.username = "default".into();
+        assert!(!connectivity_relevant_diff(&a, &b));
+
+        // And the reverse direction, for good measure.
+        assert!(!connectivity_relevant_diff(&b, &a));
+    }
+
+    #[test]
+    fn real_username_change_does_disconnect() {
+        let mut a = Connection::default();
+        let mut b = Connection::default();
+        b.acl.username = "alice".into();
+        assert!(connectivity_relevant_diff(&a, &b));
+    }
+
+    #[test]
+    fn transport_and_auth_fields_do_disconnect() {
+        let base = Connection::default();
+        let mut cases: Vec<Connection> = Vec::new();
+
+        let mut c = base.clone(); c.host = "other-host".into(); cases.push(c);
+        let mut c = base.clone(); c.port = 6380; cases.push(c);
+        let mut c = base.clone(); c.db = 3; cases.push(c);
+        let mut c = base.clone(); c.readonly = true; cases.push(c);
+        let mut c = base.clone(); c.timeout_ms = 500; cases.push(c);
+        let mut c = base.clone(); c.mode = "cluster".into(); cases.push(c);
+        let mut c = base.clone(); c.tls.enabled = true; cases.push(c);
+        let mut c = base.clone(); c.tls.skip_verify = true; cases.push(c);
+        let mut c = base.clone(); c.tls.server_name = Some("x".into()); cases.push(c);
+        let mut c = base.clone(); c.cluster.nodes.push("10.0.0.1:7000".into()); cases.push(c);
+        let mut c = base.clone(); c.sentinel.master_name = "other".into(); cases.push(c);
+        let mut c = base.clone(); c.startup_commands.push("SELECT 2".into()); cases.push(c);
+
+        for case in cases {
+            assert!(
+                connectivity_relevant_diff(&base, &case),
+                "expected diff, got none for {case:?}"
+            );
+        }
+        // AclConfig and TlsConfig are fetched to keep the imports honest.
+        let _ = (AclConfig::default(), TlsConfig::default());
+    }
 }

@@ -3,7 +3,16 @@
 export interface AclConfig {
   enabled: boolean;
   username: string;
+  /**
+   * Write-only. `get_config` always returns this blank — send a value only to
+   * change the password; empty means "keep the stored one". Reading the stored
+   * value takes an explicit `revealConnectionPassword` call.
+   */
   password: string;
+  /** Set by the backend: a password is stored, even though it isn't shown. */
+  has_password?: boolean;
+  /** Send with an empty `password` to delete the stored one. */
+  clear_password?: boolean;
 }
 
 export interface TlsConfig {

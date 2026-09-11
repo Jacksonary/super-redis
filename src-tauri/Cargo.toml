@@ -17,6 +17,9 @@ regex = "1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+# AES-256-GCM for the local secrets file. Already in the tree via rustls, so
+# this adds no new transitive dependencies.
+ring = "0.17"
 thiserror = "2"
 base64 = "0.21"
 urlencoding = "2"
