@@ -120,6 +120,12 @@ export interface ListKeysResult {
   keys: string[];
   cursor: number;
   is_truncated: boolean;
+  /** True when this round reached cursor 0 — `keys` is the whole match set. */
+  complete: boolean;
+  /** Keys walked this round: exact while browsing, an estimate (`rounds × COUNT`) for a wildcard search. */
+  scanned: number;
+  /** True when the literal-key fast path (`TYPE`) answered, so `keys` holds at most one entry. */
+  exact: boolean;
 }
 
 export interface StringValue {

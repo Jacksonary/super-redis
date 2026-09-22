@@ -95,10 +95,12 @@ export const api = {
   },
 
   // ─── Keys ─────────────────────────────────────────────────────────────
+  /** One bounded scan round. `searchId` lets the backend cancel an older round
+   * when a newer search starts; `Load more` must reuse the id of its own round. */
   listKeys(
     connId: string,
     db: number,
-    opts: { pattern?: string; cursor?: string; count?: number } = {}
+    opts: { pattern?: string; cursor?: string; count?: number; searchId?: string } = {}
   ): Promise<ListKeysResult> {
     return invoke("list_keys", {
       connId,
@@ -106,10 +108,8 @@ export const api = {
       pattern: opts.pattern ?? null,
       cursor: opts.cursor ?? null,
       count: opts.count ?? null,
+      searchId: opts.searchId ?? null,
     });
-  },
-  searchKeys(connId: string, db: number, pattern: string, cursor?: string, count?: number): Promise<ListKeysResult> {
-    return invoke("search_keys", { connId, db, pattern, cursor: cursor ?? null, count: count ?? null });
   },
   getKeyInfo(connId: string, db: number, key: string): Promise<KeyInfo> {
     return invoke("get_key_info", { connId, db, key });

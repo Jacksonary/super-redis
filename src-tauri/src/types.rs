@@ -327,7 +327,17 @@ pub struct KeyInfo {
 pub struct ListKeysResult {
     pub keys: Vec<String>,
     pub cursor: u64,
+    /// Kept as `!complete` for callers still reading the older field.
     pub is_truncated: bool,
+    /// True when this round reached cursor 0, i.e. `keys` is the whole match set.
+    pub complete: bool,
+    /// Keys walked by this round: exact while browsing (no MATCH), an estimate
+    /// (`rounds * COUNT`) for a wildcard search, because SCAN's reply carries only
+    /// the matches and never reports how many keys it looked at.
+    pub scanned: u64,
+    /// True when the literal-key fast path answered (`TYPE`), so `keys` holds at
+    /// most one entry and the result is definitive.
+    pub exact: bool,
 }
 
 #[derive(Debug, Serialize)]

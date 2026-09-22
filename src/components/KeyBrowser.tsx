@@ -17,7 +17,9 @@ interface Props {
   isDark?: boolean;
 }
 
-const PAGE = 300;
+// SCAN COUNT hint per round. The backend clamps to 1000, so raising this alone
+// changes nothing — both sides move together.
+const PAGE = 1000;
 
 // New-key types, in the order shown in the title-bar type picker. The hues are
 // the SAME palette as the value panel's --type-* CSS vars, but hardcoded hex here
@@ -42,12 +44,38 @@ function typeHue(type: string, isDark: boolean): string {
   return (isDark ? TYPE_HUES_DARK : TYPE_HUES_LIGHT)[type] ?? (isDark ? "#6b7280" : "#8c8c8c");
 }
 
+/** Append a page to the accumulated list, dropping keys already present.
+ * SCAN is allowed to return the same key on more than one page (documented
+ * behaviour, it happens across rehashes), and a duplicate `rowKey` makes the
+ * table render the row twice and warn. */
+function appendUnique(prev: string[], add: string[]): string[] {
+  if (!add.length) return prev;
+  const seen = new Set(prev);
+  const out = [...prev];
+  for (const k of add) {
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out;
+}
+
 export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal, readonly = false, isDark = false }: Props) {
   const { token } = theme.useToken();
   const { connectionId: connId, db } = target;
   const [keys, setKeys] = useState<string[]>([]);
   const [cursor, setCursor] = useState<number>(0);
   const [pattern, setPattern] = useState("");
+  // Result shape of the last round: `complete` = the scan reached cursor 0, so
+  // this really is everything; `scanned` = keys walked; `exactHit` = the literal
+  // key fast path answered (result is definitive, at most one key).
+  const [complete, setComplete] = useState(true);
+  const [scanned, setScanned] = useState(0);
+  const [exactHit, setExactHit] = useState(false);
+  // `reqSeq` drops responses a newer search has already superseded; `searchId` is
+  // what the backend cancels an older round by, and "Load more" must reuse its own.
+  const reqSeqRef = useRef(0);
+  const searchIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -96,17 +124,51 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal, reado
     [keys]
   );
 
+  // Footer status. It has to separate "walked N keys" from "matched M keys": a
+  // wildcard search can spend its whole budget and match a handful, and showing
+  // only the match count reads as "that is all there is" — the exact misreading
+  // this line exists to prevent. `scanned` is an approximation for wildcard
+  // searches (SCAN never reports how much it walked), hence the "~".
+  const scanStatus = useMemo(() => {
+    if (loading) return "scanning…";
+    if (exactHit) return keys.length ? "exact match · 1 key" : `no such key in DB${db}`;
+    if (pattern) {
+      return complete
+        ? `scanned the whole keyspace · ${keys.length} matched`
+        : `scanned ~${scanned} keys · ${keys.length} matched so far — more may exist`;
+    }
+    return complete
+      ? `${keys.length} keys · complete`
+      : `${keys.length} keys loaded — more available`;
+  }, [loading, exactHit, keys.length, pattern, complete, scanned, db]);
+
   const load = useCallback(
     async (p: string, c: number, reset: boolean) => {
+      // A fresh round takes a new seq (so stale responses lose) and a new
+      // search_id (so the backend stops the previous round at its next SCAN
+      // boundary). A continuation keeps both.
+      const seq = ++reqSeqRef.current;
+      const searchId = reset ? `s-${Date.now()}-${seq}` : searchIdRef.current;
+      if (reset) searchIdRef.current = searchId;
       setLoading(true);
       try {
-        const res = await api.listKeys(connId, db, { pattern: p || undefined, cursor: c ? String(c) : undefined, count: PAGE });
-        setKeys((prev) => (reset ? res.keys : [...prev, ...res.keys]));
+        const res = await api.listKeys(connId, db, {
+          pattern: p || undefined,
+          cursor: c ? String(c) : undefined,
+          count: PAGE,
+          searchId: searchId ?? undefined,
+        });
+        // A newer round landed while this one was in flight: its result stands.
+        if (seq !== reqSeqRef.current) return;
+        setKeys((prev) => (reset ? res.keys : appendUnique(prev, res.keys)));
         setCursor(res.cursor);
+        setComplete(res.complete);
+        setScanned(res.scanned);
+        setExactHit(res.exact);
       } catch (e) {
-        message.error(String(e));
+        if (seq === reqSeqRef.current) message.error(String(e));
       } finally {
-        setLoading(false);
+        if (seq === reqSeqRef.current) setLoading(false);
       }
     },
     [connId, db]
@@ -115,6 +177,9 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal, reado
   useEffect(() => {
     setKeys([]);
     setCursor(0);
+    setComplete(true);
+    setScanned(0);
+    setExactHit(false);
     setPattern("");
     setSelectedRowKeys([]);
     setActiveKey(null);
@@ -122,9 +187,12 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal, reado
   }, [connId, db, load]);
 
   // External reload request (e.g. a selected key expired): refresh the list so
-  // stale/expired keys disappear, without clobbering the current search.
+  // stale/expired keys disappear, without clobbering the current search. It has to
+  // re-run the SAME search: loading "" here left the box showing one pattern and
+  // the list showing another (and the status line below would describe the wrong
+  // one). Intentionally not depending on `pattern`.
   useEffect(() => {
-    if (reloadSignal) load("", 0, true);
+    if (reloadSignal) load(pattern, 0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadSignal]);
 
@@ -293,14 +361,20 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal, reado
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 12 }}>
       <div className="key-toolbar" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
         <Input.Search
-          placeholder="Search key (pattern)"
+          placeholder="Search key (exact key or pattern)"
           allowClear
           style={{ flex: 1, minWidth: 0 }}
-          onChange={(e) => e.target.value === "" && setPattern("")}
+          // Clearing the box restores the plain listing instead of leaving the
+          // previous search's results on screen under an empty input.
+          onChange={(e) => {
+            if (e.target.value !== "") return;
+            setPattern("");
+            load("", 0, true);
+          }}
           onSearch={(v) => {
             setPattern(v);
             load(v, 0, true);
-                  }}
+          }}
         />
         <Segmented
           value={view}
@@ -416,8 +490,21 @@ export function KeyBrowser({ target, delimiter, onSelectKey, reloadSignal, reado
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
-        {cursor !== 0 && (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8 }}>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12,
+            color: token.colorTextTertiary,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {scanStatus}
+        </span>
+        {!complete && (
           <Button size="small" loading={loading} onClick={() => load(pattern, cursor, false)}>
             Load more
           </Button>

@@ -65,8 +65,6 @@ pub fn run() {
             commands::connections::get_connection_status,
             // Keys
             commands::keys::list_keys,
-            commands::keys::scan_keys,
-            commands::keys::search_keys,
             commands::keys::get_key_info,
             commands::keys::get_key_count,
             commands::keys::get_db_size,
