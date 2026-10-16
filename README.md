@@ -1,5 +1,9 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+<p align="center">
+  <img src="./src-tauri/icons/icon.png" width="96" height="96" alt="Super Redis Logo" />
+</p>
+
 # Super Redis Desktop
 
 A cross-platform Redis desktop client built with [Tauri 2](https://v2.tauri.app/) + Rust + React. Features reference [AnotherRedisDesktopManager](https://gitee.com/qishibo/AnotherRedisDesktopManager). Easy to use — just download and run.

@@ -1,5 +1,9 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+<p align="center">
+  <img src="./src-tauri/icons/icon.png" width="96" height="96" alt="Super Redis Logo" />
+</p>
+
 # Super Redis Desktop
 
 一款基于 [Tauri 2](https://v2.tauri.app/) + Rust + React 的跨平台 Redis 桌面客户端，功能参考 [AnotherRedisDesktopManager](https://gitee.com/qishibo/AnotherRedisDesktopManager)。开箱即用，无需部署。
